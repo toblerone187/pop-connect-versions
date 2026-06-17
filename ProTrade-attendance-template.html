@@ -1625,44 +1625,67 @@ function collectData() {
   }
   function parseDocxMembers(doc) {
     const parsed = [];
-    const cells = doc.querySelectorAll('tc');
+    const cells = Array.from(doc.querySelectorAll('tc'));
     if (!cells.length) return parsed;
 
-    // Cell 0 contains group name, date, time and venue
-    const header = cells[0]?.textContent?.trim() || '';
-    // Extract group name (everything before the day of week)
-    const nameM = header.match(/^(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/);
-    if (nameM) wizGroupNameFromDoc = nameM[1].trim();
-    // Extract venue (everything after the time)
-    const timeM = header.match(/\d+(?:am|pm)[^\s]*(?:-|\u2013)\d*(?:am|pm)/);
-    if (timeM) wizVenueFromDoc = header.slice(header.indexOf(timeM[0]) + timeM[0].length).trim();
+    // Cell 0: header with group name, date, time, venue
+    const header = (cells[0]?.textContent || '').replace(/\s+/g, ' ').trim();
+    const dayMatch = header.match(/^(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i);
+    if (dayMatch) wizGroupNameFromDoc = dayMatch[1].trim();
+    const timeMatch = header.match(/\d+(?:am|pm)[^\s]*(?:-|\u2013)\d*(?:am|pm)/i);
+    if (timeMatch) {
+      const afterTime = header.slice(header.indexOf(timeMatch[0]) + timeMatch[0].length).trim();
+      if (afterTime) wizVenueFromDoc = afterTime;
+    }
 
-    // Member cells come in pairs: left=member details, right=notes
-    for (let i = 0; i < cells.length - 1; i += 2) {
-      const left = cells[i]?.textContent?.trim() || '';
-      const right = cells[i+1]?.textContent?.trim() || '';
-      if (!left) continue;
-      const skip = /^(MEMBERS|NOTES|VISITORS|VISITING|NEXT MEETING|Businesses|Future|Past|Unable|Subbing|Presenting|\d)/i;
-      if (skip.test(left)) continue;
-      // Name and category on first line
-      const firstLine = left.split(/\n/)[0].trim();
-      const lines = left.split(/\n/).map(l => l.trim()).filter(Boolean);
-      const nameM2 = firstLine.match(/^(.+?)\s{2,}\(([^)]+)\)/) ||
-                     firstLine.match(/^(.+?)\s*\(([^)]+)\)/) ||
-                     [null, firstLine, ''];
-      const name = nameM2[1]?.trim() || '';
-      const category = nameM2[2]?.trim() || '';
-      if (!name || name.length < 3) continue;
-      const emailLine = lines.find(l => l.includes('@') && l.includes('.'));
-      const phoneLine = lines.find(l => /^0[0-9\s]{9,}$/.test(l.replace(/\s/g,'')));
-      const biz = lines.find(l => l && l !== firstLine && !l.includes('@') && !/^0\d/.test(l)) || '';
-      const isHost = /group host/i.test(right);
-      const double = /triple member/i.test(right) ? 'Triple Member'
-                   : /double member/i.test(right) ? 'Double Member' : '';
+    // Cells come in pairs: [member details, notes]
+    // Start from cell 1 (cell 0 is header), skip section headers
+    const SKIP = /^(MEMBERS|NOTES|VISITORS|VISITING|NEXT MEETING|Businesses|Future|Past|WHO WOULD|INVITE|\d)/i;
+    const NOTES_ONLY = /^(Double Member|Triple Member|Group Host|Presenting|Unable|Subbing|Guest)/i;
+
+    let i = 1;
+    while (i < cells.length - 1) {
+      const leftText = (cells[i]?.textContent || '').replace(/\s+/g, ' ').trim();
+      const rightText = (cells[i+1]?.textContent || '').replace(/\s+/g, ' ').trim();
+
+      // Skip section headers and notes-only cells
+      if (!leftText || SKIP.test(leftText) || NOTES_ONLY.test(leftText)) { i++; continue; }
+
+      // A member cell contains an email or looks like a name with category
+      const hasEmail = leftText.includes('@');
+      const hasName = /^[A-Z][a-z]+ [A-Z]/.test(leftText);
+      if (!hasEmail && !hasName) { i++; continue; }
+
+      // Extract name and category
+      const nameM = leftText.match(/^(.+?)\s{2,}\(([^)]+)\)/) ||
+                    leftText.match(/^(.+?)\s*\(([^)]+)\)/) ||
+                    [null, leftText.split(/\s{2,}/)[0], ''];
+      const name = (nameM[1] || '').trim();
+      const category = (nameM[2] || '').trim();
+      if (!name || name.length < 3) { i += 2; continue; }
+
+      // Extract email and phone from full cell text
+      const emailM = leftText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const phoneM = leftText.match(/0[0-9][\d\s]{8,12}/);
+
+      // Business name: line between name+category line and email
+      const parts = leftText.split(/\s{2,}/);
+      const biz = parts.find(p => p && !p.includes('@') && !/^0\d/.test(p) &&
+                                   p !== name && !p.startsWith('(') && p.length > 2) || '';
+
+      // Notes column
+      const notes = rightText;
+      const isHost = /group host/i.test(notes);
+      const double = /triple member/i.test(notes) ? 'Triple Member'
+                   : /double member/i.test(notes) ? 'Double Member' : '';
+
       if (parsed.findIndex(m => m.name === name) === -1) {
-        parsed.push({ name, category, business: biz, email: emailLine || '',
-                      phone: phoneLine || '', double, isHost });
+        parsed.push({ name, category, business: biz.replace(/^\(.*?\)\s*/, ''),
+                      email: emailM ? emailM[0] : '',
+                      phone: phoneM ? phoneM[0].trim() : '',
+                      double, isHost });
       }
+      i += 2; // move to next pair
     }
     return parsed;
   }
@@ -1721,7 +1744,19 @@ function collectData() {
         }
         h=h.replace(/<title>[^<]*<\/title>/,'<title>Pop ProTrade — Attendance Sheet Generator</title>');
         h=h.replace(/<h1>[^<]*<\/h1>/,'<h1>Pop ProTrade — Attendance Sheet Generator</h1>');
-        h=h.replace(/const DEFAULT_MEMBERS = \[[\s\S]*?\];/,'const DEFAULT_MEMBERS = '+JSON.stringify(newMembers,null,2)+';');
+// Robust member injection
+        const membersStr = 'const DEFAULT_MEMBERS = ' + JSON.stringify(newMembers, null, 2) + ';';
+        const mIdx = h.indexOf('const DEFAULT_MEMBERS = [');
+        if (mIdx !== -1) {
+          let dep = 0, eIdx = mIdx;
+          for (let ci = mIdx + 24; ci < h.length; ci++) {
+            if (h[ci] === '[') dep++;
+            else if (h[ci] === ']') { dep--; if (dep === 0) { eIdx = ci + 2; break; } }
+          }
+          h = h.slice(0, mIdx) + membersStr + h.slice(eIdx);
+        } else {
+          h = h.replace('<script>', '<script>\n' + membersStr);
+        }
         h=h.replace(/const DEFAULT_FUTURE = \[[\s\S]*?\];/,'const DEFAULT_FUTURE = [];');
         h=h.replace(/const DEFAULT_PAST = \[[\s\S]*?\];/,'const DEFAULT_PAST = [];');
         h=h.replace(/function preload\w+Session\(\)[\s\S]*?(?=\n  function|\n  setTimeout)/,'');
