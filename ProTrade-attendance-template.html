@@ -5,37 +5,32 @@ PROTRADE ATTENDANCE SHEET GENERATOR — CHANGELOG
 ================================================================================
 
 v1.20 - Current version
+- Wizard step order revised: group type, member source, then group details
+- Context-aware wizard type grid: franchise template shows franchise options only
+- Pop Wellness option added to wizard (coming soon, greyed out)
+- Franchise template renamed to PopConnect-franchise-attendance-template
+- Files renamed for clarity: chelmsford, harlow-protrade etc
+- Host Guide and Franchisee Guide PDFs produced
+- Version display in UI corrected to show current version
+- Meeting date, next meeting and venue fields cleared in templates
+
+v1.19
 - Setup wizard to create new group files (Pop Connect, ProTrade, franchise variants)
-- Wizard step order changed: group type, member source, group details
 - Upload existing Word or PDF attendance sheet to auto-import member data
 - Copy members from current group or start fresh
-- Context-aware wizard: franchise template shows franchise options only
-- Pop Wellness option added (coming soon, greyed out)
 - Three master templates on GitHub replace per-file update downloads
 - Dedicated Lottery Syndicate section with toggle and editable contact name
 - Dedicated Charity section with toggle, name, description and logo upload
 - Lottery and charity removed from footer editor
 - Footer card header simplified to Footer Notes
 - Member type dropdown default label changed to Single Member
-- Member type dropdown removed from Visitors (non-members) section
+- Member type dropdown removed from Visitors section
 - Undo and Redo buttons added to footer toolbar
-- Franchise notice reads correctly from form fields
-- Delete button added directly to each member row with confirmation
-- PDF upload support added to setup wizard
-- Files renamed: chelmsford, harlow-protrade etc for clarity
-- Template files: PopConnect, ProTrade, PopConnect-franchise
-
-v1.19
-- Dedicated Lottery Syndicate section with toggle and editable contact name
-- Dedicated Charity section with toggle, name, description and logo upload
-- Setup wizard to create new group files (standard, ProTrade, franchise)
-- Wizard supports uploading existing Word sheet to import member data
-- Master templates on GitHub replace per-file update downloads
-- Member type dropdown default label changed to Single Member
-- Member type dropdown removed from Visitors (non-members) section
-- Undo/Redo buttons added to footer toolbar
 - Franchise notice now reads correctly from form fields
+- Delete button added to each member row with confirmation
+- PDF upload support added to setup wizard
 
+v1.18
 v1.18
 - Email addresses rendered as blue underlined hyperlinks in Word doc
 - Visitor rows now include member type dropdown (Double/Triple Member)
@@ -1529,7 +1524,7 @@ function collectData() {
 
 
   // ── Setup Wizard ───────────────────────────────────────────────────────
-  let wizType = '', wizSource = '', wizParsedMembers = [];
+  let wizType = '', wizSource = '', wizParsedMembers = [], wizGroupNameFromDoc = '', wizVenueFromDoc = '';
 
   function renderWizTypeGrid() {
     const grid = document.getElementById('wizTypeGrid');
@@ -1556,7 +1551,7 @@ function collectData() {
   function openWizard() {
     document.getElementById('wizardOverlay').classList.add('open');
     renderWizTypeGrid();
-    wizGoTo(1); wizType=''; wizSource=''; wizParsedMembers=[];
+    wizGoTo(1); wizType=''; wizSource=''; wizParsedMembers=[]; wizGroupNameFromDoc=''; wizVenueFromDoc='';
     document.querySelectorAll('.wiz-type-btn,.wiz-source-btn').forEach(b=>b.classList.remove('selected'));
     ['wizNext1','wizNext2','wizNext3'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
     ['wizGroupName','wizHostName','wizFranchiseCompany','wizFranchiseTerritory'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -1630,6 +1625,15 @@ function collectData() {
   }
   function parseDocxMembers(doc) {
     const parsed=[];
+    // Extract meeting details from full text
+    const fullText = doc.documentElement.textContent || '';
+    const lines = fullText.split(/\n/).map(l=>l.trim()).filter(Boolean);
+    // Try to find group name (usually first meaningful line)
+    const groupLine = lines.find(l => /pop connect|pop protrade|pop wellness/i.test(l) && l.length < 80);
+    if (groupLine) wizGroupNameFromDoc = groupLine.trim();
+    // Try to find venue (line containing common venue words)
+    const venueLine = lines.find(l => /road|street|lane|avenue|close|way|hotel|pub|cm|ig|sg|lu|nr|en|ss|e1|n1/i.test(l) && l.length > 15 && l.length < 120);
+    if (venueLine) wizVenueFromDoc = venueLine.trim();
     doc.querySelectorAll('tc').forEach(cell=>{
       const lines=cell.textContent.split('\n').map(l=>l.trim()).filter(Boolean);
       if(!lines.length) return;
@@ -1647,6 +1651,25 @@ function collectData() {
     });
     return parsed;
   }
+  function prefillWizDetailsFromSheet(parsed) {
+    const host = parsed.find(m => m.isHost);
+    if (host) {
+      const el = document.getElementById('wizHostName');
+      if (el && !el.value) el.value = host.name;
+    }
+    if (wizGroupNameFromDoc) {
+      const gn = document.getElementById('wizGroupName');
+      if (gn && !gn.value) gn.value = wizGroupNameFromDoc;
+    }
+    if (wizVenueFromDoc) {
+      const vn = document.getElementById('wizVenue');
+      if (vn && !vn.value) vn.value = wizVenueFromDoc;
+    }
+    const ff = document.getElementById('wizFranchiseFields');
+    if (ff && wizType && wizType.startsWith('franchise_')) ff.style.display = 'block';
+    updateWizNext3();
+  }
+
   function generateNewGroupFile() {
     const groupName=document.getElementById('wizGroupName').value.trim();
     const hostName=document.getElementById('wizHostName').value.trim();
@@ -1658,7 +1681,11 @@ function collectData() {
     newMembers.sort((a,b)=>a.name.localeCompare(b.name));
     const storageKey=groupName.toLowerCase().replace(/[^a-z0-9]+/g,'_')+'_session';
     const membersKey=groupName.toLowerCase().replace(/[^a-z0-9]+/g,'_')+'_members';
-    const updateFile=wizType==='franchise'?'PopConnect-franchise-attendance-template.html':wizType==='protrade'?'ProTrade-attendance-template.html':'PopConnect-attendance-template.html';
+    const isFranchiseWiz=wizType.startsWith('franchise_');
+    const isProTradeWiz=wizType==='protrade'||wizType==='franchise_protrade';
+    const updateFile=isFranchiseWiz?'PopConnect-franchise-attendance-template.html'
+      :isProTradeWiz?'ProTrade-attendance-template.html'
+      :'PopConnect-attendance-template.html';
     const templateUrl='https://raw.githubusercontent.com/toblerone187/pop-connect-versions/main/'+updateFile;
     const statusEl=document.getElementById('wizUploadStatus');
     statusEl.textContent='Downloading template...';
@@ -1672,8 +1699,8 @@ function collectData() {
         h=h.replace(/id="groupName" value="[^"]*"/,'id="groupName" value="'+groupName+'"');
         h=h.replace(/id="hostName" value="[^"]*"/,'id="hostName" value="'+hostName+'"');
         h=h.replace(/id="meetingTime" value="5pm–7pm"]*"/,'id="meetingTime" value="5pm–7pm"');
-        h=h.replace(/id="venue" value=""]*"/,'id="venue" value=""');
-        if(wizType==='franchise'&&co&&ter){
+        h=h.replace(/id="venue" value="[^"]*"/,'id="venue" value="'+venue+'"');
+        if(wizType.startsWith('franchise_')&&co&&ter){
           h=h.replace(/id="franchiseCompany" value="[^"]*"/,'id="franchiseCompany" value="'+co+'"');
           h=h.replace(/id="franchiseTerritory" value="[^"]*"/,'id="franchiseTerritory" value="'+ter.replace(/&/g,'&amp;')+'"');
         }
