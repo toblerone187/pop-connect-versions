@@ -1624,31 +1624,46 @@ function collectData() {
     reader.readAsArrayBuffer(file);
   }
   function parseDocxMembers(doc) {
-    const parsed=[];
-    // Extract meeting details from full text
-    const fullText = doc.documentElement.textContent || '';
-    const lines = fullText.split(/\n/).map(l=>l.trim()).filter(Boolean);
-    // Try to find group name (usually first meaningful line)
-    const groupLine = lines.find(l => /pop connect|pop protrade|pop wellness/i.test(l) && l.length < 80);
-    if (groupLine) wizGroupNameFromDoc = groupLine.trim();
-    // Try to find venue (line containing common venue words)
-    const venueLine = lines.find(l => /road|street|lane|avenue|close|way|hotel|pub|cm|ig|sg|lu|nr|en|ss|e1|n1/i.test(l) && l.length > 15 && l.length < 120);
-    if (venueLine) wizVenueFromDoc = venueLine.trim();
-    doc.querySelectorAll('tc').forEach(cell=>{
-      const lines=cell.textContent.split('\n').map(l=>l.trim()).filter(Boolean);
-      if(!lines.length) return;
-      const skip=/^(MEMBERS|VISITORS|VISITING|NEXT MEETING|Businesses|Future|Past|Unable|Subbing|Presenting)/i;
-      if(skip.test(lines[0])) return;
-      const nameMatch=lines[0].match(/^(.+?)\s*\(([^)]+)\)/) || [null,lines[0],''];
-      const name=nameMatch[1]?.trim()||''; const category=nameMatch[2]?.trim()||'';
-      if(!name||name.length<3) return;
-      const emailLine=lines.find(l=>l.includes('@')&&l.includes('.'));
-      const phoneLine=lines.find(l=>/^0[0-9\s]{9,}/.test(l));
-      const biz=lines.find(l=>l&&!l.includes('@')&&!/^0\d/.test(l)&&l!==lines[0])||'';
-      if(parsed.findIndex(m=>m.name===name)===-1) {
-        parsed.push({name,category,business:biz,email:emailLine||'',phone:phoneLine||'',double:'',isHost:false});
+    const parsed = [];
+    const cells = doc.querySelectorAll('tc');
+    if (!cells.length) return parsed;
+
+    // Cell 0 contains group name, date, time and venue
+    const header = cells[0]?.textContent?.trim() || '';
+    // Extract group name (everything before the day of week)
+    const nameM = header.match(/^(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/);
+    if (nameM) wizGroupNameFromDoc = nameM[1].trim();
+    // Extract venue (everything after the time)
+    const timeM = header.match(/\d+(?:am|pm)[^\s]*(?:-|\u2013)\d*(?:am|pm)/);
+    if (timeM) wizVenueFromDoc = header.slice(header.indexOf(timeM[0]) + timeM[0].length).trim();
+
+    // Member cells come in pairs: left=member details, right=notes
+    for (let i = 0; i < cells.length - 1; i += 2) {
+      const left = cells[i]?.textContent?.trim() || '';
+      const right = cells[i+1]?.textContent?.trim() || '';
+      if (!left) continue;
+      const skip = /^(MEMBERS|NOTES|VISITORS|VISITING|NEXT MEETING|Businesses|Future|Past|Unable|Subbing|Presenting|\d)/i;
+      if (skip.test(left)) continue;
+      // Name and category on first line
+      const firstLine = left.split(/\n/)[0].trim();
+      const lines = left.split(/\n/).map(l => l.trim()).filter(Boolean);
+      const nameM2 = firstLine.match(/^(.+?)\s{2,}\(([^)]+)\)/) ||
+                     firstLine.match(/^(.+?)\s*\(([^)]+)\)/) ||
+                     [null, firstLine, ''];
+      const name = nameM2[1]?.trim() || '';
+      const category = nameM2[2]?.trim() || '';
+      if (!name || name.length < 3) continue;
+      const emailLine = lines.find(l => l.includes('@') && l.includes('.'));
+      const phoneLine = lines.find(l => /^0[0-9\s]{9,}$/.test(l.replace(/\s/g,'')));
+      const biz = lines.find(l => l && l !== firstLine && !l.includes('@') && !/^0\d/.test(l)) || '';
+      const isHost = /group host/i.test(right);
+      const double = /triple member/i.test(right) ? 'Triple Member'
+                   : /double member/i.test(right) ? 'Double Member' : '';
+      if (parsed.findIndex(m => m.name === name) === -1) {
+        parsed.push({ name, category, business: biz, email: emailLine || '',
+                      phone: phoneLine || '', double, isHost });
       }
-    });
+    }
     return parsed;
   }
   function prefillWizDetailsFromSheet(parsed) {
