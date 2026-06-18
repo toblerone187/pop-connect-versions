@@ -1642,6 +1642,11 @@ function collectData() {
             document.getElementById('wizNext2').disabled=false;
             // Pre-fill group details from parsed sheet
             prefillWizDetailsFromSheet(parsed);
+            // Belt-and-braces: set stored prefill vars directly
+            wizPrefillGroup = wizGroupNameFromDoc || '';
+            wizPrefillVenue = wizVenueFromDoc || '';
+            const hostMember = parsed.find(m=>m.isHost);
+            if (hostMember) wizPrefillHost = hostMember.name;
           }
         });
       } catch(err){ status.textContent='Could not read file: '+err.message; }
