@@ -1643,7 +1643,7 @@ function collectData() {
       const biz = segs.find(s => s && !s.includes('@') && !/^0\d/.test(s) &&
                                   !s.startsWith('(') && s !== segs[0] && s.length > 2) || '';
 
-      const isHost = /group host/i.test(right);
+      const isHost = /group host|\bhost\b/i.test(right);
       const double = /triple\s*member/i.test(right) ? 'Triple Member'
                    : /double\s*member/i.test(right) ? 'Double Member' : '';
 
@@ -1714,7 +1714,7 @@ function collectData() {
         h=h.replace(/const STORAGE_KEY = '[^']+';/,"const STORAGE_KEY = '"+storageKey+"';");
         // Set unique FILE_ID to prevent cache collisions when opened in same browser
         const newFileId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-        h=h.replace(/const FILE_ID = '33d8017edd']+';/,"const FILE_ID = '"+newFileId+"';");
+        h=h.replace(/const FILE_ID = '[^']+';/,"const FILE_ID = '"+newFileId+"';");
         // Replace members key - template uses 'template_members' as placeholder
         h=h.replace(/localStorage\.getItem\('template_members'\)/g, "localStorage.getItem('" + membersKey + "')");
         h=h.replace(/localStorage\.setItem\('template_members'/g, "localStorage.setItem('" + membersKey + "'");
