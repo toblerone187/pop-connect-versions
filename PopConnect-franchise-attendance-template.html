@@ -1589,6 +1589,10 @@ function collectData() {
 
     // Cell 0: header — fix kerning artifacts
     let header = cellText(cells[0]);
+    // Strip leading numbers/hyphens from hidden Word field IDs
+    header = header.replace(/^[\d\-]+/, '').trim();
+    // Insert space before day names directly concatenated to group name
+    header = header.replace(/([A-Za-z])(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/g, '$1 $2');
     header = header.replace(/\b(a)\s+(m)\b/gi, 'am').replace(/\b(p)\s+(m)\b/gi, 'pm');
     header = header.replace(/(?<![A-Za-z])(\d)\s+(\d)/g, '$1$2');
     header = header.replace(/([A-Z])\s+([a-z])/g, '$1$2'); // fix "P lough" -> "Plough"
