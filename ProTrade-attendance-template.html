@@ -1552,6 +1552,7 @@ function collectData() {
     document.getElementById('wizardOverlay').classList.add('open');
     renderWizTypeGrid();
     wizGoTo(1); wizType=''; wizSource=''; wizParsedMembers=[]; wizGroupNameFromDoc=''; wizVenueFromDoc='';
+    wizPrefillHost=''; wizPrefillGroup=''; wizPrefillVenue='';
     document.querySelectorAll('.wiz-type-btn,.wiz-source-btn').forEach(b=>b.classList.remove('selected'));
     ['wizNext1','wizNext2','wizNext3'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
     ['wizGroupName','wizHostName','wizFranchiseCompany','wizFranchiseTerritory'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -1562,6 +1563,8 @@ function collectData() {
   function wizGoTo(step) {
     document.querySelectorAll('.wizard-step').forEach(s=>s.classList.remove('active'));
     document.getElementById('wizStep'+step)?.classList.add('active');
+    // Apply prefill values when step 3 becomes visible
+    if (step === 3) setTimeout(applyWizPrefill, 50);
   }
   function selectWizType(type,btn) {
     wizType=type;
@@ -1710,19 +1713,30 @@ function collectData() {
     }
     return parsed;
   }
+  // Store prefill values to apply when step 3 becomes visible
+  let wizPrefillHost = '', wizPrefillGroup = '', wizPrefillVenue = '';
+
   function prefillWizDetailsFromSheet(parsed) {
     const host = parsed.find(m => m.isHost);
-    if (host) {
+    wizPrefillHost = host ? host.name : '';
+    wizPrefillGroup = wizGroupNameFromDoc || '';
+    wizPrefillVenue = wizVenueFromDoc || '';
+    // Apply immediately in case step 3 is already shown
+    applyWizPrefill();
+  }
+
+  function applyWizPrefill() {
+    if (wizPrefillHost) {
       const el = document.getElementById('wizHostName');
-      if (el && !el.value) el.value = host.name;
+      if (el) el.value = wizPrefillHost;
     }
-    if (wizGroupNameFromDoc) {
+    if (wizPrefillGroup) {
       const gn = document.getElementById('wizGroupName');
-      if (gn && !gn.value) gn.value = wizGroupNameFromDoc;
+      if (gn) gn.value = wizPrefillGroup;
     }
-    if (wizVenueFromDoc) {
+    if (wizPrefillVenue) {
       const vn = document.getElementById('wizVenue');
-      if (vn && !vn.value) vn.value = wizVenueFromDoc;
+      if (vn) vn.value = wizPrefillVenue;
     }
     const ff = document.getElementById('wizFranchiseFields');
     if (ff && wizType && wizType.startsWith('franchise_')) ff.style.display = 'block';
@@ -2623,6 +2637,11 @@ function loadSession() {
   }
 
   // Check for updates on load (after a short delay)
+  const TEMPLATE_TYPE = 'protrade';
+  const UPDATE_FILE = 'ProTrade-attendance-template.html';
+  const CURRENT_VERSION = '1.20';
+  const VERSION_URL = 'https://raw.githubusercontent.com/toblerone187/pop-connect-versions/main/version.json';
+
   window.addEventListener('load', function() { setTimeout(checkForUpdates, 2000); });
 
 </script>
