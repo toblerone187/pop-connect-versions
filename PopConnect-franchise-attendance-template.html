@@ -1049,7 +1049,7 @@ let members = [];
 
 function loadMembers() {
   try {
-    const saved = localStorage.getItem('luton_franchise_members');
+    const saved = localStorage.getItem('template_members');
     members = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
   } catch(e) {
     members = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
@@ -1059,7 +1059,7 @@ function loadMembers() {
 
 function saveMembers() {
   members.sort((a,b) => a.name.localeCompare(b.name));
-  localStorage.setItem('luton_franchise_members', JSON.stringify(members));
+  localStorage.setItem('template_members', JSON.stringify(members));
   markUnsaved();
 }
 
@@ -1794,7 +1794,12 @@ function collectData() {
       .then(tmpl=>{
         let h=tmpl;
         h=h.replace(/const STORAGE_KEY = '[^']+';/,"const STORAGE_KEY = '"+storageKey+"';");
-        h=h.replace(/localStorage\.(setItem|getItem)\('[^']+_members'/g,"localStorage.$1('"+membersKey+"'");
+        // Replace members key - template uses 'template_members' as placeholder
+        h=h.replace(/localStorage\.getItem\('template_members'\)/g, "localStorage.getItem('" + membersKey + "')");
+        h=h.replace(/localStorage\.setItem\('template_members'/g, "localStorage.setItem('" + membersKey + "'");
+        // Fallback: also replace any other _members pattern
+        h=h.replace(/localStorage\.getItem\('[a-z_]+_members'\)/g, "localStorage.getItem('" + membersKey + "')");
+        h=h.replace(/localStorage\.setItem\('[a-z_]+_members'/g, "localStorage.setItem('" + membersKey + "'");
         h=h.replace(/const UPDATE_FILE = '[^']+';/,"const UPDATE_FILE = '"+updateFile+"';");
         h=h.replace(/id="groupName" value="[^"]*"/,'id="groupName" value="'+groupName+'"');
         h=h.replace(/id="hostName" value="[^"]*"/,'id="hostName" value="'+hostName+'"');
