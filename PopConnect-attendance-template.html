@@ -1035,7 +1035,9 @@ let members = [];
 function loadMembers() {
   try {
     const saved = localStorage.getItem('template_members');
-    members = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
+    const parsed = saved ? JSON.parse(saved) : null;
+    // Use DEFAULT_MEMBERS if nothing saved or saved list is empty
+    members = (parsed && parsed.length > 0) ? parsed : JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
   } catch(e) {
     members = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
   }
