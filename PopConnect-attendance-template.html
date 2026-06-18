@@ -1540,15 +1540,16 @@ function collectData() {
           if(parsed.length===0){ status.textContent='No members found. Check the file is a Pop Connect sheet.'; }
           else {
             wizParsedMembers=parsed;
-            status.textContent=parsed.length+' members found: '+parsed.slice(0,3).map(m=>m.name).join(', ')+(parsed.length>3?'...':'');
-            document.getElementById('wizNext2').disabled=false;
-            // Pre-fill group details from parsed sheet
-            prefillWizDetailsFromSheet(parsed);
-            // Belt-and-braces: set stored prefill vars directly
             wizPrefillGroup = wizGroupNameFromDoc || '';
             wizPrefillVenue = wizVenueFromDoc || '';
             const hostMember = parsed.find(m=>m.isHost);
             if (hostMember) wizPrefillHost = hostMember.name;
+            status.textContent = parsed.length + ' members found' 
+              + (wizPrefillGroup ? ' | Group: ' + wizPrefillGroup : ' | Group name not detected')
+              + (wizPrefillHost ? ' | Host: ' + wizPrefillHost : '')
+              + (parsed.length > 0 ? ' (' + parsed.slice(0,2).map(m=>m.name).join(', ') + (parsed.length>2?'...':'') + ')' : '');
+            document.getElementById('wizNext2').disabled=false;
+            prefillWizDetailsFromSheet(parsed);
           }
         });
       } catch(err){ status.textContent='Could not read file: '+err.message; }
@@ -2585,10 +2586,12 @@ function loadSession() {
         localStorage.removeItem(STORAGE_KEY);
         return false;
       }
-      // Clear session if it belongs to a different file version
-      if (typeof FILE_ID !== 'undefined' && s.fileId && s.fileId !== FILE_ID) {
-        localStorage.removeItem(STORAGE_KEY);
-        return false;
+      // Clear session if it belongs to a different file version or has no fileId (pre-FILE_ID session)
+      if (typeof FILE_ID !== 'undefined') {
+        if (!s.fileId || s.fileId !== FILE_ID) {
+          localStorage.removeItem(STORAGE_KEY);
+          return false;
+        }
       }
     }
     if (saved) {
