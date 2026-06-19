@@ -1617,8 +1617,8 @@ function collectData() {
     if (!cells.length) return parsed;
 
     // Get paragraphs from a cell as array of non-empty strings
-    const cellParas = c => Array.from(c.querySelectorAll('p'))
-      .map(p => Array.from(p.querySelectorAll('t')).map(t => t.textContent || '').join('').replace(/\s+/g,' ').trim())
+    const cellParas = c => Array.from(c.getElementsByTagName('w:p'))
+      .map(p => Array.from(p.getElementsByTagName('w:t')).map(t => t.textContent || '').join('').replace(/\s+/g,' ').trim())
       .filter(Boolean);
 
     // Cell 0: header - now may be multiple paragraphs (group name, date+time, venue)
