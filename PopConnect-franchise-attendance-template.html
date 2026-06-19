@@ -1903,6 +1903,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
 
 
+let charityImageData = null;
+
 // ── XML helpers (top-level) ─────────────────────────────────────────────
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -2410,7 +2412,7 @@ async function generateDoc() {
       '</Relationships>');
 
     // Inject lottery logo anchor into the 'Don't forget' paragraph
-    let charityImageData = null; // declared here before use
+    charityImageData = null; // reset each call
     // Lottery and charity now built via dedicated functions
     const docXmlWithLottery = docXml;
 
