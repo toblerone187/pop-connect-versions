@@ -889,11 +889,11 @@ v1.1
         <h3 style="color:var(--blue-dark);margin:0 0 4px;">Step 3 — Group details</h3>
         <p style="font-size:12px;color:var(--grey-text);margin-bottom:12px;">Pre-filled from your uploaded sheet where possible — please check and update.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="form-group" style="grid-column:1/-1;">
+          <div class="form-group">
             <label>Location / area name *</label>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <input type="text" id="wizGroupName" placeholder="e.g. Chelmsford" oninput="updateWizNext3()" style="flex:1;">
-              <span id="wizGroupSuffix" style="white-space:nowrap;color:var(--blue-dark);font-weight:600;font-size:13px;">— Pop Connect</span>
+            <div style="display:flex;align-items:center;">
+              <input type="text" id="wizGroupName" placeholder="e.g. Chelmsford" oninput="updateWizNext3()">
+              <span id="wizGroupSuffix" style="white-space:nowrap;color:var(--blue-dark);font-weight:600;font-size:13px;padding-left:8px;">Pop Connect</span>
             </div>
           </div>
           <div class="form-group">
@@ -976,7 +976,9 @@ v1.1
         <label>Description / links (one per line)</label>
         <textarea id="charityDesc" rows="3" placeholder="e.g. https://www.mndsouthessex.org"></textarea>
       </div>
-      <div id="charityLogoPreview" style="margin-top:8px;font-size:11px;color:var(--grey-text);font-style:italic;"></div>
+      <div id="charityLogoPreview" style="margin-top:8px;font-size:11px;color:var(--grey-text);font-style:italic;">
+      </div>
+      <button id="charityLogoRemoveBtn" onclick="removeCharityLogo()" style="display:none;margin-top:6px;background:none;border:1px solid #ccc;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;color:#666;font-family:inherit;">Remove logo</button>
     </div>
   </div>
 
@@ -1413,8 +1415,19 @@ function collectData() {
       charityLogoBase64 = e.target.result;
       const pv = document.getElementById('charityLogoPreview');
       if (pv) pv.innerHTML = '<img src="' + charityLogoBase64 + '" style="max-height:50px;max-width:120px;"> ' + file.name + ' loaded';
+      const btn = document.getElementById('charityLogoRemoveBtn');
+      if (btn) btn.style.display = 'inline-block';
     };
     reader.readAsDataURL(file);
+  }
+  function removeCharityLogo() {
+    charityLogoBase64 = '';
+    const pv = document.getElementById('charityLogoPreview');
+    if (pv) pv.innerHTML = '';
+    const btn = document.getElementById('charityLogoRemoveBtn');
+    if (btn) btn.style.display = 'none';
+    const input = document.getElementById('charityLogo');
+    if (input) input.value = '';
   }
   function getLotteryData() {
     return { enabled: document.getElementById('lotteryEnabled')?.checked ?? true,
@@ -1454,6 +1467,7 @@ function collectData() {
 
   // ── Setup Wizard ───────────────────────────────────────────────────────
   let wizType = '', wizSource = '', wizParsedMembers = [], wizGroupNameFromDoc = '', wizVenueFromDoc = '';
+  let wizFuturePresentations = [], wizPastPresentations = [];
 
   function renderWizTypeGrid() {
     const grid = document.getElementById('wizTypeGrid');
@@ -1482,6 +1496,7 @@ function collectData() {
     renderWizTypeGrid();
     wizGoTo(1); wizType=''; wizSource=''; wizParsedMembers=[]; wizGroupNameFromDoc=''; wizVenueFromDoc='';
     wizPrefillHost=''; wizPrefillGroup=''; wizPrefillVenue='';
+    wizFuturePresentations=[]; wizPastPresentations=[];
     document.querySelectorAll('.wiz-type-btn,.wiz-source-btn').forEach(b=>b.classList.remove('selected'));
     ['wizNext1','wizNext2','wizNext3'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
     ['wizGroupName','wizHostName','wizFranchiseCompany','wizFranchiseTerritory'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -1571,20 +1586,17 @@ function collectData() {
     const cells = Array.from(doc.querySelectorAll('tc'));
     if (!cells.length) return parsed;
 
-    const cellText = c => (c?.textContent || '').replace(/\s+/g, ' ').trim();
+    const ct = c => (c?.textContent || '').replace(/\s+/g, ' ').trim();
 
-    // Cell 0: header — fix kerning artifacts
-    let header = cellText(cells[0]);
-    // Strip leading numbers/hyphens from hidden Word field IDs
-    header = header.replace(/^[\d\-]+/, '').trim();
-    // Insert space before day names directly concatenated to group name
+    // Cell 0: header - fix kerning artifacts
+    let header = ct(cells[0]);
+    header = header.replace(/^[\d\-]+/, '').trim(); // strip leading Word field IDs
     header = header.replace(/([A-Za-z])(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/g, '$1 $2');
     header = header.replace(/\b(a)\s+(m)\b/gi, 'am').replace(/\b(p)\s+(m)\b/gi, 'pm');
     header = header.replace(/(?<![A-Za-z])(\d)\s+(\d)/g, '$1$2');
-    header = header.replace(/([A-Z])\s+([a-z])/g, '$1$2'); // fix "P lough" -> "Plough"
-    header = header.replace(/\b([A-Z])\s+([A-Z])(\d)/g, '$1$2$3'); // fix "C M1" -> "CM1"
+    header = header.replace(/([A-Z])\s+([a-z])/g, '$1$2');
 
-    // Group name: try day-of-week split first, then date split (dd/mm/yyyy)
+    // Group name
     const dayM = header.match(/^(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
     const dateM = header.match(/^(.+?)\s+\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{4}/);
     const groupRaw = dayM ? dayM[1] : dateM ? dateM[1] : '';
@@ -1594,60 +1606,113 @@ function collectData() {
       wizGroupNameFromDoc = grp;
     }
 
-    // Time: match "11am-1pm" or "11am to 1pm" or "11am–1pm"
-    const timeM = header.match(/\d+\s*(?:am|pm)\s*(?:to|-|–)\s*\d+\s*(?:am|pm)/i);
+    // Time and venue
+    const timeM = header.match(/\d+\s*(?:am|pm)\s*(?:to|-|\u2013)\s*\d+\s*(?:am|pm)/i);
     if (timeM) {
       let venue = header.slice(header.indexOf(timeM[0]) + timeM[0].length).trim();
       venue = venue.replace(/^[Aa]t\s+/, '').replace(/\s*,\s*/g, ', ').trim();
       if (venue) wizVenueFromDoc = venue;
     }
 
-    // Find where members start — skip header rows (MEMBERS, CONTACT DETAILS, NOTES)
+    // Helper: extract email-anchored business name
+    function extractMemberFields(text) {
+      const catM = text.match(/\(([^)]+)\)/);
+      if (!catM) return null;
+      const name = text.slice(0, catM.index).trim().replace(/\s+/g, ' ');
+      const category = catM[1].trim();
+      const after = text.slice(catM.index + catM[0].length).trim();
+      const atIdx = after.indexOf('@');
+      let biz = '', email = '', phone = '';
+      if (atIdx !== -1) {
+        // Walk back from @ to find start of local part
+        let localStart = atIdx;
+        while (localStart > 0 && /[a-zA-Z0-9._%+\-]/.test(after[localStart-1])) localStart--;
+        biz = after.slice(0, localStart).trim();
+        if (biz.length < 5) biz = ''; // discard short fragments
+        const emailM = after.slice(localStart).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+        email = emailM ? emailM[0] : '';
+        const rest = after.slice(localStart + email.length).trim();
+        const phoneM = rest.match(/0[0-9][\d\s]{8,12}/);
+        phone = phoneM ? phoneM[0].trim() : '';
+      } else {
+        const phoneM = after.match(/0[0-9][\d\s]{8,12}/);
+        phone = phoneM ? phoneM[0].trim() : '';
+        biz = phone ? after.slice(0, after.indexOf(phoneM[0])).trim() : after;
+      }
+      return { name, category, business: biz, email, phone };
+    }
+
+    // Section markers
     const SECTION_END = /^(VISITING MEMBERS?|VISITING COMMUNITY|VISITORS?|NEXT MEETING|Businesses|Future Pres|Past Pres|WHO WOULD|INVITE)/i;
     const HEADER_ROW = /^(MEMBERS?|NOTES?|CONTACT DETAILS?)\s*$/i;
-    const NOTES_ONLY = /^(Double Member|Triple Member|Group Host|Presenting|Unable|Subbing|Guest)/i;
+    const NOTES_ONLY = /^(Double Member|Triple Member|Group Host|Presenting|Unable|Subbing|Guest|\bHost\b)/i;
 
     let i = 1;
-    // Skip header rows at the start
-    while (i < cells.length && (HEADER_ROW.test(cellText(cells[i])) || !cellText(cells[i]))) i++;
+    while (i < cells.length && (HEADER_ROW.test(ct(cells[i])) || !ct(cells[i]))) i++;
 
+    // Parse members - stop at section end
     while (i < cells.length) {
-      const left = cellText(cells[i]);
-      const right = i + 1 < cells.length ? cellText(cells[i + 1]) : '';
-
+      const left = ct(cells[i]);
+      const right = i + 1 < cells.length ? ct(cells[i+1]) : '';
       if (SECTION_END.test(left)) break;
       if (!left || HEADER_ROW.test(left) || NOTES_ONLY.test(left)) { i++; continue; }
+      if (!left.includes('@') && !/^[A-Z][a-z]/.test(left)) { i += 2; continue; }
 
-      const hasEmail = left.includes('@');
-      const hasName = /^[A-Z][a-z]/.test(left) && /\s[A-Z]/.test(left);
-      if (!hasEmail && !hasName) { i += 2; continue; }
-
-      const nameM = left.match(/^(.+?)\s{2,}\(([^)]+)\)/) ||
-                    left.match(/^(.+?)\s*\(([^)]+)\)/) ||
-                    [null, left.split(/\s{2,}/)[0], ''];
-      const name = (nameM[1] || '').trim().replace(/\s+/g, ' ');
-      const category = (nameM[2] || '').trim();
-      if (!name || name.length < 3) { i += 2; continue; }
-
-      const emailM = left.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      const phoneM = left.match(/0[0-9][\d\s]{8,12}/);
-      const segs = left.split(/\s{2,}/);
-      const biz = segs.find(s => s && !s.includes('@') && !/^0\d/.test(s) &&
-                                  !s.startsWith('(') && s !== segs[0] && s.length > 2) || '';
-
+      const fields = extractMemberFields(left);
+      if (!fields || fields.name.length < 3) { i += 2; continue; }
       const isHost = /group host|\bhost\b/i.test(right);
       const double = /triple\s*member/i.test(right) ? 'Triple Member'
                    : /double\s*member/i.test(right) ? 'Double Member' : '';
-
-      if (parsed.findIndex(m => m.name === name) === -1) {
-        parsed.push({ name, category,
-                      business: biz.replace(/^\([^)]+\)\s*/, ''),
-                      email: emailM ? emailM[0] : '',
-                      phone: phoneM ? phoneM[0].trim() : '',
-                      double, isHost });
+      if (parsed.findIndex(m => m.name === fields.name) === -1) {
+        parsed.push({ ...fields, double, isHost });
       }
       i += 2;
     }
+
+    // Parse presentations - they come after WHO WOULD YOU LIKE TO SEE HERE
+    // Skip to that section
+    while (i < cells.length && !/WHO WOULD|INVITE/i.test(ct(cells[i]))) i++;
+    i++; // skip the WHO WOULD row itself
+
+    // Parse date triplets (date, presenter1, presenter2)
+    const DATE_RE = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+/i;
+    const MONTH_MAP = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    // Get meeting date from header for future/past split
+    const meetDateM = header.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
+    let meetDate = null;
+    if (meetDateM) {
+      const mo = MONTH_MAP[meetDateM[2].toLowerCase().slice(0,3)];
+      if (mo) meetDate = new Date(parseInt(meetDateM[3]), mo-1, parseInt(meetDateM[1]));
+    }
+
+    wizFuturePresentations = [];
+    wizPastPresentations = [];
+
+    while (i < cells.length) {
+      const txt = ct(cells[i]);
+      if (!txt) { i++; continue; }
+      if (DATE_RE.test(txt)) {
+        const p1 = i+1 < cells.length ? ct(cells[i+1]) : '';
+        const p2 = i+2 < cells.length && !DATE_RE.test(ct(cells[i+2])) ? ct(cells[i+2]) : '';
+        // Parse date to determine future vs past
+        const dm = txt.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
+        let isPast = false;
+        if (dm && meetDate) {
+          const mo = MONTH_MAP[dm[2].toLowerCase().slice(0,3)];
+          if (mo) {
+            const d = new Date(parseInt(dm[3]), mo-1, parseInt(dm[1]));
+            isPast = d < meetDate;
+          }
+        }
+        const entry = { date: txt, presenter1: p1, presenter2: p2 };
+        if (isPast) wizPastPresentations.push(entry);
+        else wizFuturePresentations.push(entry);
+        i += p2 ? 3 : (p1 ? 2 : 1);
+      } else {
+        i++;
+      }
+    }
+
     return parsed;
   }
   // Store prefill values to apply when step 3 becomes visible
@@ -1656,7 +1721,10 @@ function collectData() {
   function prefillWizDetailsFromSheet(parsed) {
     const host = parsed.find(m => m.isHost);
     wizPrefillHost = host ? host.name : '';
-    wizPrefillGroup = wizGroupNameFromDoc || '';
+    wizPrefillGroup = (wizGroupNameFromDoc || '')
+      .replace(/\s+Pop\s+Connect\s*$/i, '')
+      .replace(/\s+Pop\s+ProTrade\s*$/i, '')
+      .replace(/\s+Pop\s+Wellness\s*$/i, '').trim();
     wizPrefillVenue = wizVenueFromDoc || '';
     // Apply immediately in case step 3 is already shown
     applyWizPrefill();
@@ -1756,8 +1824,28 @@ function collectData() {
           }
         }
 
-        h=h.replace(/const DEFAULT_FUTURE = \[[\s\S]*?\];/,'const DEFAULT_FUTURE = [];');
-        h=h.replace(/const DEFAULT_PAST = \[[\s\S]*?\];/,'const DEFAULT_PAST = [];');
+        // Inject future presentations if parsed
+        const futureStr = 'const DEFAULT_FUTURE = ' + JSON.stringify(wizFuturePresentations.length > 0 ? wizFuturePresentations : [], null, 2) + ';';
+        const fMarker = 'const DEFAULT_FUTURE = [';
+        const fStart = h.indexOf(fMarker);
+        if (fStart !== -1) {
+          let fd=0, fEnd=-1;
+          for (let ci=fStart+fMarker.length-1; ci<h.length; ci++) {
+            if(h[ci]==='[')fd++; else if(h[ci]===']'){fd--;if(fd===0){let sc=ci+1;while(sc<h.length&&h[sc]!==';')sc++;fEnd=sc+1;break;}}
+          }
+          if(fEnd!==-1) h=h.slice(0,fStart)+futureStr+h.slice(fEnd);
+        }
+        // Inject past presentations if parsed
+        const pastStr = 'const DEFAULT_PAST = ' + JSON.stringify(wizPastPresentations.length > 0 ? wizPastPresentations : [], null, 2) + ';';
+        const pMarker = 'const DEFAULT_PAST = [';
+        const pStart = h.indexOf(pMarker);
+        if (pStart !== -1) {
+          let pd=0, pEnd=-1;
+          for (let ci=pStart+pMarker.length-1; ci<h.length; ci++) {
+            if(h[ci]==='[')pd++; else if(h[ci]===']'){pd--;if(pd===0){let sc=ci+1;while(sc<h.length&&h[sc]!==';')sc++;pEnd=sc+1;break;}}
+          }
+          if(pEnd!==-1) h=h.slice(0,pStart)+pastStr+h.slice(pEnd);
+        }
         h=h.replace(/function preload\w+Session\(\)[\s\S]*?(?=\n  function|\n  setTimeout)/,'');
         h=h.replace(/preload\w+Session\(\);/,'');
         const safeName=groupName.toLowerCase().replace(/[^a-z0-9]+/g,'-');
@@ -2250,9 +2338,7 @@ async function generateDoc() {
       const charityXml = buildCharityWordXml(data.charity, emailRels);
       if (charityXml) {
         bodyParts.push(charityXml);
-        if (charityImageData) {
-          zip.folder('word/media').file('charity.' + charityImageData.ext, charityImageData.data, {base64:true});
-        }
+        // Note: charity image added to zip after zip is created below
       }
     }
     const footerForWord = (data.footerNotes || '')
@@ -2282,6 +2368,10 @@ async function generateDoc() {
 
     // ── Build ZIP ─────────────────────────────────────────────────────────────
     const zip = new JSZip();
+    // Add charity image to zip if present
+    if (charityImageData) {
+      zip.folder('word/media').file('charity.' + charityImageData.ext, charityImageData.data, {base64:true});
+    }
     // ── Lottery logo image ───────────────────────────────────────────────
     zip.file('word/media/lottery.png', lotteryLogoB64, {base64: true});
     const lotteryRel = '<Relationship Id="rId_lottery" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/lottery.png"/>';
@@ -2293,7 +2383,7 @@ async function generateDoc() {
       '</Relationships>');
 
     // Inject lottery logo anchor into the 'Don't forget' paragraph
-    charityImageData = null;
+    let charityImageData = null; // declared here before use
     // Lottery and charity now built via dedicated functions
     const docXmlWithLottery = docXml;
 
