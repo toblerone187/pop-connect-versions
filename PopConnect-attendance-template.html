@@ -1594,141 +1594,120 @@ function collectData() {
     const cells = Array.from(doc.querySelectorAll('tc'));
     if (!cells.length) return parsed;
 
-    // Get paragraphs from a cell as array of non-empty strings
-    const cellParas = c => Array.from(c.getElementsByTagName('w:p'))
-      .map(p => Array.from(p.getElementsByTagName('w:t')).map(t => t.textContent || '').join('').replace(/\s+/g,' ').trim())
-      .filter(Boolean);
+    // Get non-empty text lines from a cell via w:p paragraphs
+    const cellLines = c => {
+      const wps = c.getElementsByTagName('w:p');
+      if (wps && wps.length) {
+        return Array.from(wps).map(p =>
+          Array.from(p.getElementsByTagName('w:t')).map(t => t.textContent||'').join('').replace(/\s+/g,' ').trim()
+        ).filter(Boolean);
+      }
+      // Fallback for browsers that handle namespace differently
+      return Array.from(c.querySelectorAll('p')).map(p =>
+        Array.from(p.querySelectorAll('t')).map(t => t.textContent||'').join('').replace(/\s+/g,' ').trim()
+      ).filter(Boolean);
+    };
 
-    // Cell 0: header - now may be multiple paragraphs (group name, date+time, venue)
-    const h0 = cellParas(cells[0]);
-    // Para 0: group name (possibly with date fused due to kerning)
-    let headerLine = h0.join(' ');
-    headerLine = headerLine.replace(/^[\d\-]+/, '').trim();
-    headerLine = headerLine.replace(/([A-Za-z])(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/g, '$1 $2');
-    headerLine = headerLine.replace(/\b(a)\s+(m)\b/gi, 'am').replace(/\b(p)\s+(m)\b/gi, 'pm');
-    headerLine = headerLine.replace(/(?<![A-Za-z])(\d)\s+(\d)/g, '$1$2');
-    headerLine = headerLine.replace(/([A-Z])\s+([a-z])/g, '$1$2');
+    // ── Header cell ──────────────────────────────────────────────────────
+    const h0 = cellLines(cells[0]);
+    let headerLine = h0.join(' ')
+      .replace(/^[\d\-]+/, '').trim()
+      .replace(/([A-Za-z])(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/g, '$1 $2')
+      .replace(/\b(a)\s+(m)\b/gi, 'am').replace(/\b(p)\s+(m)\b/gi, 'pm')
+      .replace(/(?<![A-Za-z])(\d)\s+(\d)/g, '$1$2')
+      .replace(/([A-Z])\s+([a-z])/g, '$1$2');
 
-    const dayM = headerLine.match(/^(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
+    const dayM  = headerLine.match(/^(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
     const dateM = headerLine.match(/^(.+?)\s+\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{4}/);
-    // Also check first paragraph alone for group name
     let grpRaw = dayM ? dayM[1] : dateM ? dateM[1] : '';
-    if (!grpRaw && h0.length > 0) {
-      // First para may be just the group name
-      const p0clean = h0[0].replace(/^[\d\-]+/, '').trim();
-      if (!/\d{4}/.test(p0clean) && p0clean.length > 3) grpRaw = p0clean;
+    if (!grpRaw && h0[0]) {
+      const p0 = h0[0].replace(/^[\d\-]+/,'').trim();
+      if (!/\d{4}/.test(p0) && p0.length > 3) grpRaw = p0;
     }
     if (grpRaw) {
-      let grp = grpRaw.trim().replace(/\s+/g, ' ');
-      if (grp === grp.toUpperCase()) grp = grp.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+      let grp = grpRaw.trim().replace(/\s+/g,' ');
+      if (grp === grp.toUpperCase()) grp = grp.replace(/\b\w+/g, w => w[0].toUpperCase()+w.slice(1).toLowerCase());
       wizGroupNameFromDoc = grp;
     }
-
-    // Time and venue from header paragraphs
     for (const para of h0) {
       const tm = para.match(/\d+\s*(?:am|pm)\s*(?:to|-|\u2013)\s*\d+\s*(?:am|pm)/i);
       if (tm) {
-        const afterTime = para.slice(para.indexOf(tm[0]) + tm[0].length).trim().replace(/^[Aa]t\s+/, '');
-        // Venue might be in next para or after the time
-        if (afterTime.length > 3) wizVenueFromDoc = afterTime;
-        else if (h0.indexOf(para) + 1 < h0.length) wizVenueFromDoc = h0[h0.indexOf(para) + 1];
+        const v = para.slice(para.indexOf(tm[0])+tm[0].length).trim().replace(/^[Aa]t\s+/,'');
+        if (v.length > 3) { wizVenueFromDoc = v; break; }
+        const idx = h0.indexOf(para);
+        if (idx+1 < h0.length) { wizVenueFromDoc = h0[idx+1]; break; }
       }
     }
 
-    // Section markers
-    const SECTION_END = /^(VISITING MEMBERS?|VISITING COMMUNITY|VISITORS?|NEXT MEETING|Businesses|Future Pres|Past Pres|WHO WOULD|INVITE)/i;
-    const HEADER_ROW = /^(MEMBERS?|NOTES?|CONTACT DETAILS?)\s*$/i;
-    const NOTES_ONLY = /^(Double Member|Triple Member|Group Host|Presenting|Unable|Subbing|Guest|\bHost\b)/i;
+    // ── Member rows ──────────────────────────────────────────────────────
+    const SKIP = /^(VISITING MEMBERS?|VISITING COMMUNITY|VISITORS?|NEXT MEETING|WHO WOULD|INVITE)/i;
+    const HDR  = /^(MEMBERS?|NOTES?|CONTACT DETAILS?)\s*$/i;
+    const NOTE = /^(Double Member|Triple Member|Group Host|\bHost\b|Presenting|Unable|Subbing|Guest)/i;
 
-    // Skip initial header rows
     let i = 1;
+    while (i < cells.length && (HDR.test(cellLines(cells[i])[0]||'') || !cellLines(cells[i]).length)) i++;
+
     while (i < cells.length) {
-      const paras = cellParas(cells[i]);
-      if (!paras.length || HEADER_ROW.test(paras[0])) { i++; continue; }
-      break;
-    }
+      const lines = cellLines(cells[i]);
+      const right = i+1 < cells.length ? cellLines(cells[i+1]) : [];
+      if (!lines.length)           { i+=2; continue; }
+      if (SKIP.test(lines[0]))     { break; }
+      if (HDR.test(lines[0]) || NOTE.test(lines[0])) { i++; continue; }
 
-    // Parse members - cells come in pairs (member, notes)
-    while (i < cells.length) {
-      const paras = cellParas(cells[i]);
-      const rightParas = i + 1 < cells.length ? cellParas(cells[i + 1]) : [];
+      // Line 0: "Name (Category)" — category may wrap to next line
+      let nameLine = lines[0], catParas = 1;
+      if (!nameLine.includes(')') && lines.length > 1) {
+        nameLine = lines[0] + ' ' + lines[1];
+        catParas = 2;
+      }
+      const catM = nameLine.match(/\(([^)]+)\)/);
+      if (!catM) { i+=2; continue; }
 
-      if (!paras.length) { i += 2; continue; }
-      if (SECTION_END.test(paras[0])) break;
-      if (HEADER_ROW.test(paras[0]) || NOTES_ONLY.test(paras[0])) { i++; continue; }
-
-      // Join paragraphs to handle category spanning multiple lines
-      // e.g. ["Toby Acton (Personal Business Mentor", "and Motivational Specialist)"]
-      let fullText = paras.join(' ');
-
-      const catM = fullText.match(/\(([^)]+)\)/);
-      if (!catM) { i += 2; continue; }
-
-      const name = fullText.slice(0, catM.index).trim().replace(/\s+/g, ' ');
+      const name     = nameLine.slice(0, catM.index).trim().replace(/\s+/g,' ');
       const category = catM[1].trim();
-      const afterCat = fullText.slice(catM.index + catM[0].length).trim();
+      if (!name || name.length < 3) { i+=2; continue; }
 
-      if (!name || name.length < 3) { i += 2; continue; }
+      const rest = lines.slice(catParas);
 
-      // Business name: first non-empty para after the name+category para
-      // Email: para containing @
-      // Phone: para starting with 0 followed by digits
-      // These come from the individual paragraphs (not the joined text)
+      // Simple line-by-line: biz = non-@ non-phone lines joined, email = @ line, phone = 0x line
+      const email    = rest.find(l => l.includes('@')) || '';
+      const phone    = rest.find(l => /^0\d/.test(l)) || '';
+      const bizParts = rest.filter(l => !l.includes('@') && !/^0\d/.test(l));
+      const business = bizParts.join(' ').trim();
 
-      // Find which paragraph contains the category closing bracket
-      let paraOffset = 0;
-      let cumLen = 0;
-      for (let pi = 0; pi < paras.length; pi++) {
-        cumLen += (pi > 0 ? 1 : 0) + paras[pi].length; // +1 for space join
-        if (cumLen >= catM.index + catM[0].length) { paraOffset = pi + 1; break; }
-      }
+      const isHost = right.some(r => /group host|\bhost\b/i.test(r));
+      const double = right.find(r => /triple\s*member/i.test(r)) ? 'Triple Member'
+                   : right.find(r => /double\s*member/i.test(r)) ? 'Double Member' : '';
 
-      const remainingParas = paras.slice(paraOffset);
-      const business = remainingParas.find(p => !p.includes('@') && !/^0\d/.test(p) && p.length > 1) || '';
-      const email = remainingParas.find(p => p.includes('@')) || '';
-      const phone = remainingParas.find(p => /^0\d/.test(p)) || '';
-
-      const isHost = rightParas.some(r => /group host|\bhost\b/i.test(r));
-      const double = rightParas.find(r => /triple\s*member/i.test(r)) ? 'Triple Member'
-                   : rightParas.find(r => /double\s*member/i.test(r)) ? 'Double Member' : '';
-
-      if (parsed.findIndex(m => m.name === name) === -1) {
+      if (parsed.findIndex(m => m.name === name) === -1)
         parsed.push({ name, category, business, email, phone, double, isHost });
-      }
       i += 2;
     }
 
-    // Parse presentations
-    while (i < cells.length && !SECTION_END.test((cellParas(cells[i])[0] || ''))) i++;
-    while (i < cells.length && (SECTION_END.test((cellParas(cells[i])[0] || '')) || !cellParas(cells[i]).length)) i++;
+    // ── Presentations ─────────────────────────────────────────────────────
+    while (i < cells.length && !/WHO WOULD|INVITE/i.test(cellLines(cells[i])[0]||'')) i++;
+    while (i < cells.length && (/WHO WOULD|INVITE/i.test(cellLines(cells[i])[0]||'') || !cellLines(cells[i]).length)) i++;
 
-    const DATE_RE = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+/i;
-    const MONTH_MAP = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-    const meetDateM = headerLine.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
-    let meetDate = null;
-    if (meetDateM) {
-      const mo = MONTH_MAP[meetDateM[2].toLowerCase().slice(0, 3)];
-      if (mo) meetDate = new Date(parseInt(meetDateM[3]), mo - 1, parseInt(meetDateM[1]));
-    }
+    const DATE_RE  = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+/i;
+    const MONTHS   = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    const meetDM   = headerLine.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
+    let meetDate   = null;
+    if (meetDM) { const mo=MONTHS[meetDM[2].toLowerCase().slice(0,3)]; if(mo) meetDate=new Date(+meetDM[3],mo-1,+meetDM[1]); }
+
     wizFuturePresentations = [];
-    wizPastPresentations = [];
+    wizPastPresentations   = [];
 
     while (i < cells.length) {
-      const txt = (cellParas(cells[i])[0] || '');
+      const txt = cellLines(cells[i])[0] || '';
       if (!txt) { i++; continue; }
       if (DATE_RE.test(txt)) {
-        const p1 = i + 1 < cells.length ? (cellParas(cells[i+1])[0] || '') : '';
-        const p2 = i + 2 < cells.length && !DATE_RE.test(cellParas(cells[i+2])[0] || '') ? (cellParas(cells[i+2])[0] || '') : '';
-        let isPast = false;
+        const p1 = i+1 < cells.length ? (cellLines(cells[i+1])[0]||'') : '';
+        const p2 = i+2 < cells.length && !DATE_RE.test(cellLines(cells[i+2])[0]||'') ? (cellLines(cells[i+2])[0]||'') : '';
+        let past = false;
         const dm = txt.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
-        if (dm && meetDate) {
-          const mo = MONTH_MAP[dm[2].toLowerCase().slice(0, 3)];
-          if (mo) isPast = new Date(parseInt(dm[3]), mo - 1, parseInt(dm[1])) < meetDate;
-        }
-        const entry = { date: txt, presenter1: p1, presenter2: p2 };
-        if (isPast) wizPastPresentations.push(entry);
-        else wizFuturePresentations.push(entry);
-        i += (p1 ? 1 : 0) + (p2 ? 1 : 0) + 1;
+        if (dm && meetDate) { const mo=MONTHS[dm[2].toLowerCase().slice(0,3)]; if(mo) past=new Date(+dm[3],mo-1,+dm[1])<meetDate; }
+        (past ? wizPastPresentations : wizFuturePresentations).push({date:txt, presenter1:p1, presenter2:p2});
+        i += 3;
       } else { i++; }
     }
 
@@ -1955,6 +1934,15 @@ function buildLotteryWordXml(lottery, lotteryImgXml, emailRels) {
 
 function buildCharityWordXml(charity, emailRels) {
     if (!charity || !charity.enabled || !charity.name) return '';
+    // Calculate image dimensions (EMU). Max height 1.2cm = 432000 EMU, max width 4cm = 1440000 EMU
+    const maxH = 432000, maxW = 1440000;
+    let charityCx = 1028700, charityCy = 432000;
+    if (charityLogoWidth > 0 && charityLogoHeight > 0) {
+      const ratio = charityLogoWidth / charityLogoHeight;
+      charityCx = Math.round(maxH * ratio);
+      if (charityCx > maxW) { charityCx = maxW; charityCy = Math.round(maxW / ratio); }
+      else { charityCy = maxH; }
+    }
     const hr = '<w:p><w:pPr><w:spacing w:after="0" w:before="50"/>'
       + '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>'
       + '</w:pPr></w:p><w:p><w:pPr><w:spacing w:after="50" w:before="0"/></w:pPr></w:p>';
@@ -1988,7 +1976,7 @@ function buildCharityWordXml(charity, emailRels) {
           + '<w:tc><w:tcPr><w:tcW w:w="1440" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>'
           + '<w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:rPr><w:noProof/></w:rPr>'
           + '<w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
-          + '<wp:extent cx="'+(charityLogoWidth>0&&charityLogoHeight>0?Math.min(1440000,Math.round(432000*charityLogoWidth/charityLogoHeight)):1028700)+'" cy="'+(charityLogoWidth>0&&charityLogoHeight>0?Math.min(432000,Math.round(Math.min(1440000,Math.round(432000*charityLogoWidth/charityLogoHeight))*charityLogoHeight/charityLogoWidth)):1028700)+'/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
+          + '<wp:extent cx="'+charityCx+'" cy="'+charityCy+'"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
           + '<wp:docPr id="3" name="CharityLogo"/>'
           + '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
           + '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
@@ -1996,7 +1984,7 @@ function buildCharityWordXml(charity, emailRels) {
           + '<pic:nvPicPr><pic:cNvPr id="3" name="CharityLogo"/><pic:cNvPicPr/></pic:nvPicPr>'
           + '<pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="' + rId + '"/>'
           + '<a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
-          + '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+(charityLogoWidth>0&&charityLogoHeight>0?Math.min(1440000,Math.round(432000*charityLogoWidth/charityLogoHeight)):1028700)+'" cy="'+(charityLogoWidth>0&&charityLogoHeight>0?Math.min(432000,Math.round(Math.min(1440000,Math.round(432000*charityLogoWidth/charityLogoHeight))*charityLogoHeight/charityLogoWidth)):1028700)+'/></a:xfrm>'
+          + '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+charityCx+'" cy="'+charityCy+'"/></a:xfrm>'
           + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
           + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>'
           + '</w:r></w:p></w:tc>'
