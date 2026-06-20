@@ -1640,53 +1640,103 @@ function collectData() {
     }
 
     // ── Member rows ──────────────────────────────────────────────────────
-    const SKIP = /^(VISITING MEMBERS?|VISITING COMMUNITY|VISITORS?|NEXT MEETING|WHO WOULD|INVITE)/i;
-    const HDR  = /^(MEMBERS?|NOTES?|CONTACT DETAILS?)\s*$/i;
-    const NOTE = /^(Double Member|Triple Member|Group Host|\bHost\b|Presenting|Unable|Subbing|Guest)/i;
+    // Tolerant, format-agnostic scan. Works across different host layouts.
+    // A member cell = first line contains a name (with or without category in brackets).
+    // Picks up what's there, leaves blank what isn't.
+
+    // Stop scanning members when we hit a date cell (start of presentations table).
+    // Matches both "Mon 8th June" and "Thursday 25th September 2025" and "June 2026" style dates.
+    const DATE_START = /^(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)[\s,]+\d|^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[a-z]*\s+\d{4}$|^\d{1,2}(?:st|nd|rd|th)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov)|^\d{4}$/i;
+
+    // Cells to skip entirely — section headers, notes labels, status tags
+    const NONSENSE = /^(MEMBERS?|WOODFORD MEMBERS?|NOTES?|CONTACT DETAILS?|WRITE YOUR NOTES|Double Member|Triple Member|Group Host|\bHost\b|Presenting|PRESENTING|Unable|Subbing|Not Attending|Guest|NEW MEMBER|VISITING|VISITORS?|NEXT MEETING|WHO WOULD|INVITE|BUSINESSES WANTED|Future|Past|Charity Member|Group.s Charity|Upcoming|Some businesses|January|February|March|April|June|July|August|September|October|November|December)/i;
 
     let i = 1;
-    while (i < cells.length && (HDR.test(cellLines(cells[i])[0]||'') || !cellLines(cells[i]).length)) i++;
-
     while (i < cells.length) {
       const lines = cellLines(cells[i]);
-      const right = i+1 < cells.length ? cellLines(cells[i+1]) : [];
-      if (!lines.length)           { i+=2; continue; }
-      if (SKIP.test(lines[0]))     { break; }
-      if (HDR.test(lines[0]) || NOTE.test(lines[0])) { i++; continue; }
+      const firstLine = lines[0] || '';
 
-      // Line 0: "Name (Category)" — category may wrap to next line
-      let nameLine = lines[0], catParas = 1;
-      if (!nameLine.includes(')') && lines.length > 1) {
-        nameLine = lines[0] + ' ' + lines[1];
+      // Stop when we reach the presentations / future dates section
+      if (DATE_START.test(firstLine)) break;
+
+      // Skip non-member cells
+      if (!lines.length || NONSENSE.test(firstLine)) { i++; continue; }
+
+      // ── Extract name and optional category ──────────────────────────────
+      // Strip any appended status text e.g. "Greg Reece     DOUBLE MEMBER" or "Kevan Wimborne    HOST"
+      let rawFirst = firstLine.replace(/\s{2,}(?:DOUBLE MEMBER|TRIPLE MEMBER|HOST|GROUP HOST|NEW MEMBER)\s*$/i, '').trim();
+
+      // Category in brackets is optional — some hosts omit it
+      // Category may wrap to next line; also text may follow ')' on same line (business name overflow)
+      let nameLine = rawFirst, catParas = 1;
+      if (!nameLine.includes(')') && lines.length > 1 && lines[1].includes(')')) {
+        nameLine = rawFirst + ' ' + lines[1];
         catParas = 2;
       }
       const catM = nameLine.match(/\(([^)]+)\)/);
-      if (!catM) { i+=2; continue; }
 
-      const name     = nameLine.slice(0, catM.index).trim().replace(/\s+/g,' ');
-      const category = catM[1].trim();
-      if (!name || name.length < 3) { i+=2; continue; }
+      let name, category, afterBracket = '';
+      if (catM) {
+        name        = nameLine.slice(0, catM.index).trim().replace(/\s+/g,' ');
+        category    = catM[1].trim();
+        afterBracket = nameLine.slice(catM.index + catM[0].length).trim(); // text after closing )
+      } else {
+        name        = rawFirst.trim().replace(/\s+/g,' ');
+        category    = '';
+        afterBracket = '';
+      }
 
+      // Must look like a real name: at least 2 chars, not a known label
+      if (!name || name.length < 2 || NONSENSE.test(name)) { i++; continue; }
+
+      // ── Extract business, email, phone from remaining lines ─────────────
+      // afterBracket: text that ran on after ')' on the name line counts as start of business
       const rest = lines.slice(catParas);
 
-      // Simple line-by-line: biz = non-@ non-phone lines joined, email = @ line, phone = 0x line
-      const email    = rest.find(l => l.includes('@')) || '';
-      const phone    = rest.find(l => /^0\d/.test(l)) || '';
-      const bizParts = rest.filter(l => !l.includes('@') && !/^0\d/.test(l));
-      const business = bizParts.join(' ').trim();
+      // Scan rest lines: find email (first line containing @), phone (first line starting 0 or +44)
+      // Business = everything before the email line, joined, plus any afterBracket prefix.
+      // If a "business" line contains both text and an @ (merged), split it.
+      let business = '', email = '', phone = '';
+      const bizParts = afterBracket ? [afterBracket] : [];
 
-      const isHost = right.some(r => /group host|\bhost\b/i.test(r));
-      const double = right.find(r => /triple\s*member/i.test(r)) ? 'Triple Member'
-                   : right.find(r => /double\s*member/i.test(r)) ? 'Double Member' : '';
+      for (const line of rest) {
+        if (!email && line.includes('@')) {
+          // Check if biz name and email are merged on same line e.g. "Biz Name user@domain.com"
+          const atIdx = line.indexOf('@');
+          // Walk back from @ to find start of email local part (last space or start)
+          let localStart = line.lastIndexOf(' ', atIdx);
+          if (localStart === -1) localStart = 0; else localStart += 1;
+          const beforeEmail = line.slice(0, localStart).trim();
+          if (beforeEmail) bizParts.push(beforeEmail);
+          email = line.slice(localStart).trim();
+        } else if (!phone && /^(?:0|\+44)\d/.test(line.trim())) {
+          phone = line.trim();
+        } else if (!email) {
+          // Only accumulate biz lines before we've found the email
+          bizParts.push(line);
+        }
+        // Lines after email (second email, extra notes) are ignored
+      }
+      business = bizParts.join(' ').trim();
 
-      if (parsed.findIndex(m => m.name === name) === -1)
+      // ── Host / double status ─────────────────────────────────────────────
+      // May appear in this cell, the adjacent notes cell, or appended to the name line
+      const allText = lines.concat(i+1 < cells.length ? cellLines(cells[i+1]) : []).join(' ') + ' ' + firstLine;
+      const isHost  = /group host|\bhost\b/i.test(allText);
+      const double  = /triple\s*member/i.test(allText) ? 'Triple Member'
+                    : /double\s*member/i.test(allText) ? 'Double Member' : '';
+
+      if (!parsed.find(m => m.name === name))
         parsed.push({ name, category, business, email, phone, double, isHost });
-      i += 2;
+
+      i++;
     }
 
     // ── Presentations ─────────────────────────────────────────────────────
-    while (i < cells.length && !/WHO WOULD|INVITE/i.test(cellLines(cells[i])[0]||'')) i++;
-    while (i < cells.length && (/WHO WOULD|INVITE/i.test(cellLines(cells[i])[0]||'') || !cellLines(cells[i]).length)) i++;
+    // i is already at first date cell (member loop broke on DATE_START), or
+    // scan forward if the presentations section has a different header first.
+    while (i < cells.length && !DATE_START.test(cellLines(cells[i])[0]||'') && !/WHO WOULD|INVITE|BUSINESSES WANTED/i.test(cellLines(cells[i])[0]||'')) i++;
+    while (i < cells.length && (/WHO WOULD|INVITE|BUSINESSES WANTED/i.test(cellLines(cells[i])[0]||'') || (!DATE_START.test(cellLines(cells[i])[0]||'') && !cellLines(cells[i]).length))) i++;
 
     const DATE_RE  = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+/i;
     const MONTHS   = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
@@ -2336,7 +2386,7 @@ async function generateDoc() {
       return paras.join('');
     }
 
-    const lotteryImgXml = '<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>14605</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>6985</wp:posOffset></wp:positionV><wp:extent cx="1701450" cy="1663076"/><wp:effectExtent l="0" t="0" r="0" b="9525"/><wp:wrapSquare wrapText="bothSides"/><wp:docPr id="201" name="LotteryLogo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="201" name="LotteryLogo"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId_lottery" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" cstate="print"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="1701450" cy="1663076"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>';
+    const lotteryImgXml = '<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>14605</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>6985</wp:posOffset></wp:positionV><wp:extent cx="1270000" cy="1241534"/><wp:effectExtent l="0" t="0" r="0" b="9525"/><wp:wrapSquare wrapText="bothSides"/><wp:docPr id="201" name="LotteryLogo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="201" name="LotteryLogo"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId_lottery" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" cstate="print"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="1270000" cy="1241534"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>';
 
     // Lottery section
     if (data.lottery?.enabled !== false) {
