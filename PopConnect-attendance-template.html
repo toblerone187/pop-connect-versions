@@ -1919,7 +1919,7 @@ function buildLotteryWordXml(lottery, lotteryImgXml, emailRels) {
     emailRels.push({id: urlId, href: 'https://www.syndicatetool.com/syndicates/pop-connect-lottery-syndicate/join'});
     return [
       '<w:p><w:pPr><w:spacing w:after="40" w:before="0"/><w:keepNext/></w:pPr>'
-        + run('Don\u2019t forget the Pop Connect Lottery Syndicate', {bold:true, sz:24})
+        + run('Don\u2019t forget the Pop Connect Lottery Syndicate', {bold:true, underline:true, sz:24})
         + lotteryAnchor + '</w:p>',
       p(run('If you are a Pop Connect member and would like to join the Pop Lottery Syndicate please use this link and set up an account as a new user:', {sz:24}), {after:40}),
       '<w:p><w:pPr><w:spacing w:after="40" w:before="0"/><w:ind w:left="100" w:right="100"/></w:pPr>'
@@ -2017,13 +2017,14 @@ async function generateDoc() {
       return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    function run(text, {bold=false, sz=24, color=null, italic=false}={}) {
+    function run(text, {bold=false, sz=24, color=null, italic=false, underline=false}={}) {
       if (!text) return '';
       const b = bold ? '<w:b/><w:bCs/>' : '';
       const i = italic ? '<w:i/><w:iCs/>' : '';
       const c = color ? `<w:color w:val="${color}"/>` : '';
+      const u = underline ? '<w:u w:val="single"/>' : '';
       const space = (text !== text.trim() || text.includes('  ')) ? ' xml:space="preserve"' : '';
-      return `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${b}${i}${c}<w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr><w:t${space}>${esc(text)}</w:t></w:r>`;
+      return `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${b}${i}${c}${u}<w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr><w:t${space}>${esc(text)}</w:t></w:r>`;
     }
 
     function p(content, {align=null, after=0, before=0, shd=null}={}) {
@@ -2335,7 +2336,7 @@ async function generateDoc() {
       return paras.join('');
     }
 
-    const lotteryImgXml = '<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>14605</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>6985</wp:posOffset></wp:positionV><wp:extent cx="720000" cy="703800"/><wp:effectExtent l="0" t="0" r="0" b="9525"/><wp:wrapSquare wrapText="bothSides"/><wp:docPr id="201" name="LotteryLogo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="201" name="LotteryLogo"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId_lottery" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" cstate="print"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="720000" cy="703800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>';
+    const lotteryImgXml = '<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>14605</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>6985</wp:posOffset></wp:positionV><wp:extent cx="1701450" cy="1663076"/><wp:effectExtent l="0" t="0" r="0" b="9525"/><wp:wrapSquare wrapText="bothSides"/><wp:docPr id="201" name="LotteryLogo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="201" name="LotteryLogo"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId_lottery" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" cstate="print"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="1701450" cy="1663076"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>';
 
     // Lottery section
     if (data.lottery?.enabled !== false) {
