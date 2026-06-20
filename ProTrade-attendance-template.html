@@ -2636,7 +2636,6 @@ function getSessionData() {
 
   return {
     meeting,
-    members,
     attendance,
     visitingMembers: getVisitorRows('visitingList'),
     communityMembers: getVisitorRows('communityList'),
@@ -2660,12 +2659,7 @@ function restoreSessionData(session) {
     });
   }
 
-  // Restore members
-  if (session.members) {
-    members = session.members;
-    saveMembers();
-    renderMembers();
-  }
+  // Members are not stored in session — they live in DEFAULT_MEMBERS only
 
   // Restore attendance after render
   if (session.attendance) {
