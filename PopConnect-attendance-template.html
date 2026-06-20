@@ -1042,14 +1042,24 @@ const DEFAULT_PAST = [];
 let members = [];
 
 function loadMembers() {
+  // Always start from DEFAULT_MEMBERS — localStorage is only used for mid-session edits
+  // and is keyed by FILE_ID so stale data from previous file versions is ignored.
   try {
     const saved = localStorage.getItem('template_members');
     const parsed = saved ? JSON.parse(saved) : null;
-    // Use DEFAULT_MEMBERS if nothing saved or saved list is empty
-    members = (parsed && parsed.length > 0) ? parsed : JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
-  } catch(e) {
-    members = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
-  }
+    // Only restore from localStorage if it belongs to this exact file instance
+    if (parsed && parsed.length > 0 && typeof FILE_ID !== 'undefined' && FILE_ID && FILE_ID !== 'PLACEHOLDER') {
+      const sessionRaw = localStorage.getItem(STORAGE_KEY);
+      const session = sessionRaw ? JSON.parse(sessionRaw) : null;
+      if (session && session.fileId && session.fileId === FILE_ID) {
+        members = parsed;
+        members.sort((a,b) => a.name.localeCompare(b.name));
+        return;
+      }
+    }
+  } catch(e) {}
+  // Default: always use DEFAULT_MEMBERS
+  members = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
   members.sort((a,b) => a.name.localeCompare(b.name));
 }
 
