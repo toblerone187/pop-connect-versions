@@ -1042,30 +1042,14 @@ const DEFAULT_PAST = [];
 let members = [];
 
 function loadMembers() {
-  // Always start from DEFAULT_MEMBERS — localStorage is only used for mid-session edits
-  // and is keyed by FILE_ID so stale data from previous file versions is ignored.
-  try {
-    const saved = localStorage.getItem('template_members');
-    const parsed = saved ? JSON.parse(saved) : null;
-    // Only restore from localStorage if it belongs to this exact file instance
-    if (parsed && parsed.length > 0 && typeof FILE_ID !== 'undefined' && FILE_ID && FILE_ID !== 'PLACEHOLDER') {
-      const sessionRaw = localStorage.getItem(STORAGE_KEY);
-      const session = sessionRaw ? JSON.parse(sessionRaw) : null;
-      if (session && session.fileId && session.fileId === FILE_ID) {
-        members = parsed;
-        members.sort((a,b) => a.name.localeCompare(b.name));
-        return;
-      }
-    }
-  } catch(e) {}
-  // Default: always use DEFAULT_MEMBERS
+  // Always load from DEFAULT_MEMBERS — no localStorage for members.
+  // Member list is baked into the file at generation time.
   members = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
   members.sort((a,b) => a.name.localeCompare(b.name));
 }
 
 function saveMembers() {
   members.sort((a,b) => a.name.localeCompare(b.name));
-  localStorage.setItem('template_members', JSON.stringify(members));
   markUnsaved();
 }
 
@@ -1909,12 +1893,7 @@ function collectData() {
         // Set unique FILE_ID to prevent cache collisions when opened in same browser
         const newFileId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
         h=h.replace(/const FILE_ID = '[^']+';/,"const FILE_ID = '" + newFileId + "';");
-        // Replace members key - template uses 'template_members' as placeholder
-        h=h.replace(/localStorage\.getItem\('template_members'\)/g, "localStorage.getItem('" + membersKey + "')");
-        h=h.replace(/localStorage\.setItem\('template_members'/g, "localStorage.setItem('" + membersKey + "'");
-        // Fallback: also replace any other _members pattern
-        h=h.replace(/localStorage\.getItem\('[a-z_]+_members'\)/g, "localStorage.getItem('" + membersKey + "')");
-        h=h.replace(/localStorage\.setItem\('[a-z_]+_members'/g, "localStorage.setItem('" + membersKey + "'");
+        // Members are baked into DEFAULT_MEMBERS — no localStorage key replacement needed
         h=h.replace(/const UPDATE_FILE = '[^']+';/,"const UPDATE_FILE = '"+updateFile+"';");
         h=h.replace(/id="groupName" value="[^"]*"/,'id="groupName" value="'+groupName+'"');
         h=h.replace(/id="hostName" value="[^"]*"/,'id="hostName" value="'+hostName+'"');
