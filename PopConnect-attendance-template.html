@@ -2956,22 +2956,16 @@ function attachChangeWatchers() {
 function loadSession() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    // Clear stale sessions that have old <br> footer format
     if (saved) {
       const s = JSON.parse(saved);
-      if (s.footerNotes && s.footerNotes.includes('<br>')) {
+      // Reject stale sessions: no fileId means saved before FILE_ID existed,
+      // or fileId mismatch means a different version of this file saved it.
+      // Either way, start fresh rather than loading wrong data.
+      if (!s.fileId || s.fileId !== FILE_ID) {
         localStorage.removeItem(STORAGE_KEY);
         return false;
       }
-      // Clear session if FILE_ID is unset, is a placeholder, or doesn't match
-      if (FILE_ID === 'PLACEHOLDER' || !s.fileId || s.fileId !== FILE_ID) {
-        localStorage.removeItem(STORAGE_KEY);
-        return false;
-      }
-    }
-    if (saved) {
-      const session = JSON.parse(saved);
-      restoreSessionData(session);
+      restoreSessionData(s);
       return true;
     }
   } catch(e) {
@@ -2985,11 +2979,10 @@ console.log('FILE_ID:', typeof FILE_ID !== 'undefined' ? FILE_ID : 'NOT SET');
 console.log('STORAGE_KEY:', STORAGE_KEY);
 loadMembers();
 renderMembers();
-// Try to restore previous session first; if no session, use DEFAULT_FUTURE/PAST
+initPresentations();
+// Try to restore previous session, fall back to defaults
 const sessionRestored = loadSession();
 if (!sessionRestored) {
-  // No session — load default presentations and mark clean
-  initPresentations();
   updateSaveIndicator('No previous session found', false);
 }
 // Attach change watchers after everything is rendered
