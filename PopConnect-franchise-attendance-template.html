@@ -1681,12 +1681,15 @@ function collectData() {
     }
 
     // Extract meeting date from header — handles dd/mm/yyyy, dd/mm/yy, dd.mm.yy, dd.mm.yyyy,
-    // "15.5.26", "15/05/2026", "Thursday 11th June 2026", "Monday 8th June 2026"
+    // "15.5.26", "15/05/2026", "Thursday 11th June 2026", "Thurs 18th June 11pm" (no year)
     wizMeetingDateFromDoc = '';
     for (const para of h0) {
-      // Full date with day name: "Thursday 11th June 2026"
-      const fullDate = para.match(/(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
+      // Full date with day name and year: "Thursday 11th June 2026" or "Thurs 18th June 2026"
+      const fullDate = para.match(/(?:Mon(?:day)?|Tues?(?:day)?|Wed(?:nesdays?)?|Thur?s?(?:day)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
       if (fullDate) { wizMeetingDateFromDoc = fullDate[0].trim(); break; }
+      // Day name + date without year: "Thursday 18th June" — append current year
+      const partialDate = para.match(/(?:Mon(?:day)?|Tues?(?:day)?|Wed(?:nesdays?)?|Thur?s?(?:day)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i);
+      if (partialDate) { wizMeetingDateFromDoc = partialDate[0].trim() + ' ' + new Date().getFullYear(); break; }
       // Numeric: dd/mm/yyyy or dd.mm.yy etc.
       const numDate = para.match(/\b(\d{1,2})[\/.](\d{1,2})[\/.]((\d{2}|\d{4}))\b/);
       if (numDate) {
@@ -1725,7 +1728,7 @@ function collectData() {
     // Picks up what's there, leaves blank what isn't.
 
     // Stop scanning members when we hit a date/presentations cell OR a visitors section.
-    const DATE_START = /^(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)[\s,]+\d|^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[a-z]*\s+\d{4}$|^\d{1,2}(?:st|nd|rd|th)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov)|^\d{4}$/i;
+    const DATE_START = /^(?:Mon(?:days?)?|Tue(?:sdays?)?|Tues|Wed(?:nesdays?)?|Weds|Thu(?:rsdays?)?|Thurs|Fri(?:days?)?|Sat(?:urdays?)?|Sun(?:days?)?)[\s,]+\d|^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[a-z]*\s+\d{4}$|^\d{1,2}(?:st|nd|rd|th)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov)|^\d{4}$/i;
     // Standalone month name (Shenfield-style presentation schedule)
     const MONTH_ONLY = /^(?:January|February|March|April|May|June|July|August|September|October|November|December)$/i;
     // Stop member scan entirely at these section headers — everything after is ignored
@@ -1824,7 +1827,7 @@ function collectData() {
       && !DATE_START.test(cellLines(cells[i])[0]||'')
       && !MONTH_ONLY.test(cellLines(cells[i])[0]||'')) i++;
 
-    const DATE_RE  = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+/i;
+    const DATE_RE  = /^(?:Mon(?:day)?|Tues?(?:day)?|Wed(?:nesday)?s?|Thur?s?(?:day)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+\d+/i;
     const MONTHS   = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
     const meetDM   = headerLine.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
     let meetDate   = null;
