@@ -992,8 +992,19 @@ v1.1
         </div>
       </div>
       <div class="form-group">
-        <label>Description / links (one per line)</label>
-        <textarea id="charityDesc" rows="3" placeholder="e.g. https://www.mndsouthessex.org"></textarea>
+        <label>Description / links</label>
+        <div class="rich-toolbar" id="charityToolbar">
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('undo',false,null)" title="Undo" style="font-size:14px;">↩</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('redo',false,null)" title="Redo" style="font-size:14px;">↪</button>
+          <span style="color:var(--grey-mid);margin:0 4px;">|</span>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('bold',false,null)" title="Bold"><b>B</b></button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('italic',false,null)" title="Italic"><i>I</i></button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('underline',false,null)" title="Underline"><u>U</u></button>
+          <div class="tb-sep"></div>
+          <button onclick="fmtLink()" title="Insert link">&#128279;</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('removeFormat',false,null)" title="Clear formatting" style="color:#999;">&#10006;</button>
+        </div>
+        <div id="charityDesc" contenteditable="true" spellcheck="true" style="min-height:60px;padding:8px;border:1px solid var(--grey-mid);border-radius:6px;font-size:14px;line-height:1.5;"></div>
       </div>
       <div id="charityLogoPreview" style="margin-top:8px;font-size:11px;color:var(--grey-text);font-style:italic;">
       </div>
@@ -1464,7 +1475,7 @@ function collectData() {
   function getCharityData() {
     return { enabled: document.getElementById('charityEnabled')?.checked ?? false,
              name: document.getElementById('charityName')?.value || '',
-             desc: document.getElementById('charityDesc')?.value || '',
+             desc: document.getElementById('charityDesc')?.innerHTML || '',
              logo: charityLogoBase64 };
   }
   function restoreLotteryCharity(session) {
@@ -1478,7 +1489,7 @@ function collectData() {
       const ce = document.getElementById('charityEnabled');
       if (ce) { ce.checked = !!session.charity.enabled; toggleCharityBody(); }
       const cn = document.getElementById('charityName'); if (cn) cn.value = session.charity.name || '';
-      const cd = document.getElementById('charityDesc'); if (cd) cd.value = session.charity.desc || '';
+      const cd = document.getElementById('charityDesc'); if (cd) cd.innerHTML = session.charity.desc || '';
       if (session.charity.logo) {
         charityLogoBase64 = session.charity.logo;
         const pv = document.getElementById('charityLogoPreview');
@@ -2722,11 +2733,11 @@ function restoreSessionData(session) {
   restoreVisitors('communityList', session.communityMembers);
   restoreVisitors('visitorList',   session.visitors, false);
 
-  // Restore presentations
+  // Restore presentations — only overwrite DEFAULT_FUTURE/PAST if session has rows
   const restorePres = (tbodyId, rows, addFn) => {
     if (!rows || !rows.length) return;
     document.getElementById(tbodyId).innerHTML = '';
-    rows.forEach(r => addFn(r.date, r.p1, r.p2));
+    rows.forEach(r => addFn(r.date, r.presenter1 || r.p1 || '', r.presenter2 || r.p2 || ''));
   };
   restorePres('futurePresTbody', session.futurePres, addFutureRow);
   restorePres('pastPresTbody',   session.pastPres,   addPastRow);
