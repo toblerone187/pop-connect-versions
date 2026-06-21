@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 ================================================================================
-LUTON NORTH FRANCHISE ATTENDANCE SHEET GENERATOR — CHANGELOG
+POP ATTENDANCE SHEET GENERATOR — CHANGELOG
 ================================================================================
 
 v1.20 - Current version
@@ -677,7 +677,6 @@ v1.1
   <div class="logo-circle">PC</div>
   <div>
     <h1>Pop Connect Franchise — Attendance Sheet Generator</h1>
-  <p style="font-size:11px;color:var(--grey-text);margin-top:2px;font-style:italic;">Franchise version</p>
     <p>Fill in the details below and generate your Word doc in one click &nbsp;·&nbsp; <span style="opacity:0.7;font-size:11px;">v1.20</span></p>
   </div>
 </header>
@@ -718,7 +717,7 @@ v1.1
           <input type="text" id="hostName" value="" placeholder="Host name">
         </div>
       </div>
-      <div style="margin-top:14px;padding:12px 14px;background:var(--blue-pale);border-radius:8px;border-left:3px solid var(--blue-dark);">
+      <div style="margin-top:14px;">
         <div style="font-size:11px;font-weight:700;color:var(--grey-text);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Franchise Details</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group">
@@ -726,11 +725,11 @@ v1.1
             <input type="text" id="franchiseCompany" value="" placeholder="e.g. Smith Networking Ltd" oninput="updateFranchisePreview()">
           </div>
           <div class="form-group">
-            <label>Geographical Territory (Schedule 1)</label>
-            <input type="text" id="franchiseTerritory" value="" placeholder="e.g. Luton &amp; South Bucks" oninput="updateFranchisePreview()">
+            <label>Territory</label>
+            <input type="text" id="franchiseTerritory" value="" placeholder="e.g. Norfolk South" oninput="updateFranchisePreview()">
           </div>
         </div>
-        <div style="font-size:11px;color:var(--grey-text);margin-top:8px;font-style:italic;" id="franchisePreviewLine">Loading...</div>
+        <div style="font-size:11px;color:var(--grey-text);margin-top:8px;font-style:italic;" id="franchisePreviewLine">Enter company name and territory above.</div>
       </div>
     </div>
   </div>
@@ -844,7 +843,7 @@ v1.1
     <div class="card-header">🏢 Businesses Wanted</div>
     <div class="card-body">
       <div class="notes-group">
-        <textarea id="bizWanted" rows="4">Architect, Solicitors, Beauty/Health Products, Builder, Business Signs, Roofer, Cleaning Company, Copywriter, Recruitment, Electrician, Florist, Estate Agent, Security &amp; Alarms, Hypnotherapist, Landscaper, Marketing / SEO Expert, Photographer, Physiotherapist, Plumber/Gas Engineer ...and many more!</textarea>
+        <textarea id="bizWanted">Architect, Beauty Products, Builder, Business Signs, Cake Maker, Copywriter, Dog Groomer, Electrician, Estate Planner, Fashion, Florist, Health Products, Health &amp; Safety, Hypnotherapist, Landscaper, Make up, Marketing Expert, Physiotherapist, Plumber/Gas Engineer, Recruitment Agency, Roofer, Security &amp; Alarms, SEO Expert, Solicitors, Personal Stylist, Taxi Service ...and many more!</textarea>
       </div>
     </div>
   </div>
@@ -964,7 +963,7 @@ v1.1
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
         <div class="form-group">
           <label>Contact name for queries</label>
-          <input type="text" id="lotteryContact" value="Toby Acton" placeholder="e.g. Toby Acton" oninput="updateLotteryPreview()">
+          <input type="text" id="lotteryContact" value="" placeholder="e.g. Toby Acton" oninput="updateLotteryPreview()">
         </div>
       </div>
       <div style="font-size:11px;color:var(--grey-text);font-style:italic;" id="lotteryPreview">Preview loading...</div>
@@ -1089,6 +1088,13 @@ function loadMembers() {
   // Member list is baked into the file at generation time.
   members = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
   members.sort((a,b) => a.name.localeCompare(b.name));
+}
+
+function updateFranchisePreview() {
+  const co = document.getElementById('franchiseCompany')?.value || '[Company]';
+  const ter = document.getElementById('franchiseTerritory')?.value || '[Territory]';
+  const el = document.getElementById('franchisePreviewLine');
+  if (el) el.textContent = `Pop Connect ${ter} is a franchise independently owned and operated by ${co} with the written consent of Pop Franchising Limited`;
 }
 
 function saveMembers() {
@@ -1310,13 +1316,6 @@ function makeVisitorRow(notePlaceholder, showMemberType=true) {
   return row;
 }
 
-function updateFranchisePreview() {
-  const co = document.getElementById('franchiseCompany')?.value || '[Company]';
-  const ter = document.getElementById('franchiseTerritory')?.value || '[Territory]';
-  const el = document.getElementById('franchisePreviewLine');
-  if (el) el.textContent = `Pop Connect ${ter} is a franchise independently owned and operated by ${co} with the written consent of Pop Franchising Limited`;
-}
-
 function sortVisitorList(listId) {
   const list = document.getElementById(listId);
   const rows = Array.from(list.querySelectorAll('.visitor-row'));
@@ -1534,7 +1533,7 @@ function collectData() {
       { type: isFranchise ? 'franchise_standard' : 'standard',
         icon: '🤝', label: prefix + 'Pop Connect', desc: isFranchise ? 'Franchise Pop Connect group' : 'Standard networking group', soon: false },
       { type: isFranchise ? 'franchise_protrade' : 'protrade',
-        icon: '🔧', label: prefix + 'Pop ProTrade', desc: isFranchise ? 'Franchise ProTrade group' : 'Trades networking group', soon: false },
+        icon: '🔧', label: prefix + 'Pop ProTrade', desc: 'Coming soon', soon: true },
       { type: isFranchise ? 'franchise_wellness' : 'wellness',
         icon: '🌿', label: prefix + 'Pop Wellness', desc: 'Coming soon', soon: true },
     ];
@@ -1949,8 +1948,8 @@ function collectData() {
           h=h.replace(/id="franchiseCompany" value="[^"]*"/,'id="franchiseCompany" value="'+co+'"');
           h=h.replace(/id="franchiseTerritory" value="[^"]*"/,'id="franchiseTerritory" value="'+ter.replace(/&/g,'&amp;')+'"');
         }
-        h=h.replace(/<title>[^<]*<\/title>/,'<title>Pop Connect Franchise — Attendance Sheet Generator</title>');
-        h=h.replace(/<h1>[^<]*<\/h1>/,'<h1>Pop Connect Franchise — Attendance Sheet Generator</h1>');
+        h=h.replace(/<title>[^<]*<\/title>/,'<title>'+groupName+' - Attendance Sheet Generator</title>');
+        h=h.replace(/<h1>[^<]*<\/h1>/,'<h1>'+groupName+' - Attendance Sheet Generator</h1>');
 // Robust member injection using bracket counting
         const membersStr = 'const DEFAULT_MEMBERS = ' + JSON.stringify(newMembers, null, 2) + ';';
         const mMarker = 'const DEFAULT_MEMBERS = [';
@@ -2562,11 +2561,13 @@ async function generateDoc() {
     bodyParts.push(blankPara + htmlToWordXml(footerForWord) + blankPara);
 
 
-    // Franchise notice — bottom of last page
-    const franchiseCo = esc(m.franchiseCompany || document.getElementById('franchiseCompany')?.value || '');
-    const franchiseTer = esc(m.franchiseTerritory || document.getElementById('franchiseTerritory')?.value || '');
-    const franchiseNotice = `Pop Connect ${franchiseTer} is a franchise independently owned and operated by ${franchiseCo} with the written consent of Pop Franchising Limited`;
-    bodyParts.push(`<w:p><w:pPr><w:spacing w:after="0" w:before="400"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">${franchiseNotice}</w:t></w:r></w:p>`);
+    // Franchise notice at bottom of last page
+    const franchiseCo = esc(document.getElementById('franchiseCompany')?.value || '');
+    const franchiseTer = esc(document.getElementById('franchiseTerritory')?.value || '');
+    if (franchiseCo && franchiseTer) {
+      const franchiseNotice = `Pop Connect ${franchiseTer} is a franchise independently owned and operated by ${franchiseCo} with the written consent of Pop Franchising Limited`;
+      bodyParts.push(`<w:p><w:pPr><w:spacing w:after="0" w:before="400"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">${franchiseNotice}</w:t></w:r></w:p>`);
+    }
     bodyParts.push('<w:sectPr><w:pgSz w:w="11906" w:h="16838" w:code="9"/><w:pgMar w:top="720" w:right="907" w:bottom="284" w:left="907" w:header="454" w:footer="57" w:gutter="0"/></w:sectPr>');
 
     const NS = 'xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" mc:Ignorable="w14 w15"';
@@ -3022,8 +3023,19 @@ function loadSession() {
   return false;
 }
 // ─── INIT ────────────────────────────────────────────────────────────────
-
-  setTimeout(updateFranchisePreview, 200);
+console.log('DEFAULT_MEMBERS count:', DEFAULT_MEMBERS.length, DEFAULT_MEMBERS.slice(0,2).map(m=>m.name));
+console.log('FILE_ID:', typeof FILE_ID !== 'undefined' ? FILE_ID : 'NOT SET');
+console.log('STORAGE_KEY:', STORAGE_KEY);
+loadMembers();
+renderMembers();
+initPresentations();
+// Try to restore previous session, fall back to defaults
+const sessionRestored = loadSession();
+if (!sessionRestored) {
+  updateSaveIndicator('No previous session found', false);
+}
+// Attach change watchers after everything is rendered
+setTimeout(attachChangeWatchers, 500);
 // Warn before closing if unsaved
 window.addEventListener('beforeunload', (e) => {
   if (hasUnsavedChanges) {
