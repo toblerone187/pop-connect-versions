@@ -2076,22 +2076,63 @@ function buildCharityWordXml(charity, emailRels) {
     const hr = '<w:p><w:pPr><w:spacing w:after="0" w:before="50"/>'
       + '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>'
       + '</w:pPr></w:p><w:p><w:pPr><w:spacing w:after="50" w:before="0"/></w:pPr></w:p>';
-    const descLines = (charity.desc || '').split('\n').filter(l => l.trim());
+    // Parse HTML from the rich text charity editor into Word XML
+    function charityHtmlToWordXml(html) {
+      if (!html) return '';
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      let xml = '';
+      function nodeToRuns(node, ctx) {
+        ctx = ctx || {};
+        if (node.nodeType === 3) {
+          const t = node.textContent;
+          return t ? run(t, {sz:22, bold:!!ctx.bold, italic:!!ctx.italic, underline:!!ctx.underline}) : '';
+        }
+        const tag = node.nodeName.toLowerCase();
+        const nctx = Object.assign({}, ctx);
+        if (tag==='b'||tag==='strong') nctx.bold=true;
+        if (tag==='i'||tag==='em') nctx.italic=true;
+        if (tag==='u') nctx.underline=true;
+        if (tag==='a') {
+          const href = node.getAttribute('href')||'';
+          const uid = 'rId_ch_url_' + emailRels.length;
+          emailRels.push({id:uid, href:href});
+          const linkText = node.textContent || href;
+          return '<w:hyperlink r:id="' + uid + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            + '<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="0563C1"/>'
+            + '<w:u w:val="single"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>'
+            + '<w:t>' + esc(linkText) + '</w:t></w:r></w:hyperlink>';
+        }
+        return Array.from(node.childNodes).map(function(c){return nodeToRuns(c,nctx);}).join('');
+      }
+      function blockToXml(node) {
+        const tag = node.nodeName.toLowerCase();
+        if (tag==='hr') {
+          return '<w:p><w:pPr><w:spacing w:after="0" w:before="50"/>'
+            + '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>'
+            + '</w:pPr></w:p><w:p><w:pPr><w:spacing w:after="20" w:before="0"/></w:pPr></w:p>';
+        }
+        if (node.nodeType===3) {
+          const t = node.textContent.trim();
+          return t ? '<w:p><w:pPr><w:spacing w:after="20" w:before="0"/></w:pPr>'+run(t,{sz:22})+'</w:p>' : '';
+        }
+        const isBlock = /^(p|div|h[1-6]|li)$/.test(tag);
+        if (isBlock || tag==='br') {
+          if (tag==='br') return '';
+          const inner = Array.from(node.childNodes).map(function(c){return nodeToRuns(c,{});}).join('');
+          if (!inner.trim()) return '<w:p><w:pPr><w:spacing w:after="20" w:before="0"/></w:pPr></w:p>';
+          return '<w:p><w:pPr><w:spacing w:after="20" w:before="0"/></w:pPr>'+inner+'</w:p>';
+        }
+        const runs = nodeToRuns(node, {});
+        return runs ? '<w:p><w:pPr><w:spacing w:after="20" w:before="0"/></w:pPr>'+runs+'</w:p>' : '';
+      }
+      Array.from(tmp.childNodes).forEach(function(n){ xml += blockToXml(n); });
+      return xml;
+    }
+
     let rightXml = '<w:p><w:pPr><w:spacing w:after="40" w:before="0"/><w:keepNext/></w:pPr>'
       + run(charity.name, {bold:true, sz:24}) + '</w:p>';
-    descLines.forEach(line => {
-      const t = line.trim();
-      if (t.startsWith('http')) {
-        const uid = 'rId_ch_url_' + emailRels.length;
-        emailRels.push({id: uid, href: t});
-        rightXml += '<w:p><w:pPr><w:spacing w:after="20" w:before="0"/></w:pPr>'
-          + '<w:hyperlink r:id="' + uid + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-          + '<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="0563C1"/><w:u w:val="single"/>'
-          + '<w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>' + esc(t) + '</w:t></w:r></w:hyperlink></w:p>';
-      } else {
-        rightXml += '<w:p><w:pPr><w:spacing w:after="20" w:before="0"/></w:pPr>' + run(t, {sz:22}) + '</w:p>';
-      }
-    });
+    rightXml += charityHtmlToWordXml(charity.desc);
     let tableXml = '';
     if (charity.logo && charity.logo.startsWith('data:image')) {
       const m = charity.logo.match(/^data:image\/(\w+);base64,(.+)$/);
@@ -2486,7 +2527,9 @@ async function generateDoc() {
       .replace(/<p[^>]*>\s*<\/p>/gi, '')
       .replace(/<p[^>]*><br\s*\/?><\/p>/gi, '')
       .trim();
-    bodyParts.push(htmlToWordXml(footerForWord));
+    // Buffer blank paragraphs before and after footer content
+    const blankPara = '<w:p><w:pPr><w:spacing w:after="0" w:before="0"/></w:pPr></w:p>';
+    bodyParts.push(blankPara + htmlToWordXml(footerForWord) + blankPara);
 
 
     bodyParts.push('<w:sectPr><w:pgSz w:w="11906" w:h="16838" w:code="9"/><w:pgMar w:top="720" w:right="907" w:bottom="284" w:left="907" w:header="454" w:footer="57" w:gutter="0"/></w:sectPr>');
@@ -2834,9 +2877,11 @@ function attachChangeWatchers() {
     el.addEventListener('change', markUnsaved);
     el.addEventListener('input', markUnsaved);
   });
-  // Watch contenteditable footer
+  // Watch contenteditable editors
   const fe = document.getElementById('footerEditor');
   if (fe) fe.addEventListener('input', markUnsaved);
+  const cd = document.getElementById('charityDesc');
+  if (cd) cd.addEventListener('input', markUnsaved);
   // Watch dynamic visitor lists via delegation
   document.addEventListener('input', (e) => {
     if (e.target.closest('#visitingList, #communityList, #visitorList, #futurePresTbody, #pastPresTbody')) {
