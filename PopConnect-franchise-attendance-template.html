@@ -726,7 +726,7 @@ v1.1
           </div>
           <div class="form-group">
             <label>Territory</label>
-            <input type="text" id="franchiseTerritory" value="" placeholder="e.g. Norfolk South" oninput="updateFranchisePreview()">
+            <input type="text" id="franchiseTerritory" value="" placeholder="e.g. Shropshire" oninput="updateFranchisePreview()">
           </div>
         </div>
         <div style="font-size:11px;color:var(--grey-text);margin-top:8px;font-style:italic;" id="franchisePreviewLine">Enter company name and territory above.</div>
@@ -936,7 +936,7 @@ v1.1
                 </div>
                 <div class="form-group">
                   <label>Geographical Territory (Schedule 1) *</label>
-                  <input type="text" id="wizFranchiseTerritory" placeholder="e.g. Norfolk South" oninput="updateWizNext3()">
+                  <input type="text" id="wizFranchiseTerritory" placeholder="e.g. Shropshire" oninput="updateWizNext3()">
                 </div>
               </div>
             </div>
@@ -1005,7 +1005,7 @@ v1.1
           <button onclick="document.getElementById('charityDesc').focus();document.execCommand('fontSize',false,'2')" title="Small text" style="font-size:11px;">A-</button>
           <div class="tb-sep"></div>
           <button onclick="document.getElementById('charityDesc').focus();document.execCommand('justifyLeft',false,null)" title="Align left">&#8676;</button>
-          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('justifyCenter',false,null)" title="Centre">&#8578;</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('justifyCenter',false,null)" title="Centre">&#9776;</button>
           <div class="tb-sep"></div>
           <button onclick="fmtLinkFor('charityDesc')" title="Insert link">&#128279;</button>
           <button onclick="document.getElementById('charityDesc').focus();document.execCommand('removeFormat',false,null)" title="Clear formatting" style="color:#999;">&#10006;</button>
@@ -1039,7 +1039,7 @@ v1.1
           <button onclick="fmtSize('20')" title="Small text" style="font-size:11px;">A-</button>
           <div class="tb-sep"></div>
           <button onclick="fmtAlign('left')" title="Align left">&#8676;</button>
-          <button onclick="fmtAlign('center')" title="Centre">&#8578;</button>
+          <button onclick="fmtAlign('center')" title="Centre">&#9776;</button>
           <div class="tb-sep"></div>
           <button onclick="fmtLink()" title="Insert link">&#128279;</button>
           <button onclick="fmtClear()" title="Clear formatting" style="color:#999;">&#10006;</button>
@@ -1051,7 +1051,7 @@ v1.1
             <input type="file" accept="image/*" style="display:none;" onchange="insertFooterImage(this, 'left')">
           </label>
           <button onclick="alignFooterImage('left')" title="Image left">&#8612;</button>
-          <button onclick="alignFooterImage('center')" title="Image centre">&#8606;</button>
+          <button onclick="alignFooterImage('center')" title="Image centre">&#9776;</button>
           <button onclick="alignFooterImage('right')" title="Image right">&#8614;</button>
         </div>
         <div id="footerEditor" contenteditable="true" spellcheck="true"><p>Should any details be incorrect on an attendance sheet, please inform your host of any changes.</p></div>
@@ -1828,40 +1828,37 @@ function collectData() {
       && !MONTH_ONLY.test(cellLines(cells[i])[0]||'')) i++;
 
     const DATE_RE  = /^(?:Mon(?:day)?|Tues?(?:day)?|Wed(?:nesday)?s?|Thur?s?(?:day)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+\d+/i;
-    const MONTHS   = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-    const meetDM   = headerLine.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
-    let meetDate   = null;
-    if (meetDM) { const mo=MONTHS[meetDM[2].toLowerCase().slice(0,3)]; if(mo) meetDate=new Date(+meetDM[3],mo-1,+meetDM[1]); }
 
     wizFuturePresentations = [];
     wizPastPresentations   = [];
+
+    // Track which section we're in — default to future.
+    // Switch to past when we see a "Past Presentations" label in the sheet.
+    let inPast = false;
 
     while (i < cells.length) {
       const txt = cellLines(cells[i])[0] || '';
       if (!txt) { i++; continue; }
 
-      // Standard format: "Mon 8th June 2026" / presenter1 / presenter2 in next two cells
+      // Section label — switch between future and past
+      if (/^past\s+pres/i.test(txt)) { inPast = true; i++; continue; }
+      if (/^future\s+pres/i.test(txt) || /^upcoming\s+pres/i.test(txt)) { inPast = false; i++; continue; }
+
+      // Standard format: date cell / presenter1 / presenter2 in next two cells
       if (DATE_RE.test(txt) || DATE_START.test(txt)) {
         const p1 = i+1 < cells.length ? (cellLines(cells[i+1])[0]||'') : '';
         const p2 = i+2 < cells.length && !DATE_RE.test(cellLines(cells[i+2])[0]||'') && !DATE_START.test(cellLines(cells[i+2])[0]||'') ? (cellLines(cells[i+2])[0]||'') : '';
-        let past = false;
-        const dm = txt.match(/(\d+)\w*\s+(\w+)\s+(\d{4})/);
-        if (dm && meetDate) { const mo=MONTHS[dm[2].toLowerCase().slice(0,3)]; if(mo) past=new Date(+dm[3],mo-1,+dm[1])<meetDate; }
-        (past ? wizPastPresentations : wizFuturePresentations).push({date:txt, presenter1:p1, presenter2:p2});
+        (inPast ? wizPastPresentations : wizFuturePresentations).push({date:txt, presenter1:p1, presenter2:p2});
         i += 3;
 
       // Month-only format: "January" / "Melissa and Toby" in next cell
       } else if (MONTH_ONLY.test(txt)) {
         const presCell = i+1 < cells.length ? (cellLines(cells[i+1])[0]||'') : '';
-        // Strip "(guest presenter)" from presenter name
         const presClean = presCell.replace(/\s*\(guest presenters?\)/i,'').trim();
-        // Split "Name & Name" into presenter1 and presenter2
         const parts = presClean.split(/\s*[&,]\s*/);
         const p1 = parts[0]||'', p2 = parts[1]||'';
-        // Use month name as the date label — year comes from doc header if available
-        const yr = meetDM ? meetDM[3] : new Date().getFullYear();
-        const dateLabel = txt + ' ' + yr;
-        wizFuturePresentations.push({date:dateLabel, presenter1:p1, presenter2:p2});
+        const dateLabel = txt + ' ' + new Date().getFullYear();
+        (inPast ? wizPastPresentations : wizFuturePresentations).push({date:dateLabel, presenter1:p1, presenter2:p2});
         i += 2;
 
       } else { i++; }

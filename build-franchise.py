@@ -66,7 +66,7 @@ def build(src_path, out_path):
           </div>
           <div class="form-group">
             <label>Territory</label>
-            <input type="text" id="franchiseTerritory" value="" placeholder="e.g. Norfolk South" oninput="updateFranchisePreview()">
+            <input type="text" id="franchiseTerritory" value="" placeholder="e.g. Shropshire" oninput="updateFranchisePreview()">
           </div>
         </div>
         <div style="font-size:11px;color:var(--grey-text);margin-top:8px;font-style:italic;" id="franchisePreviewLine">Enter company name and territory above.</div>
