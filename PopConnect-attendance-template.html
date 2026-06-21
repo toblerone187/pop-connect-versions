@@ -998,7 +998,7 @@ v1.1
           <div class="tb-sep"></div>
           <button onclick="fmtHRuleFor('charityDesc')" title="Insert horizontal divider line" style="letter-spacing:1px;">― line ―</button>
         </div>
-        <div id="charityDesc" contenteditable="true" spellcheck="true" style="min-height:60px;padding:8px;border:1px solid var(--grey-mid);border-radius:6px;font-size:14px;line-height:1.5;"></div>
+        <div id="charityDesc" contenteditable="true" spellcheck="true" style="min-height:60px;padding:8px 8px 8px 14px;border:1px solid var(--grey-mid);border-radius:6px;font-size:14px;line-height:1.5;"></div>
       </div>
       <div id="charityLogoPreview" style="margin-top:8px;font-size:11px;color:var(--grey-text);font-style:italic;">
       </div>
@@ -1032,7 +1032,7 @@ v1.1
           <div class="tb-sep"></div>
           <button onclick="fmtHRule()" title="Insert horizontal divider line" style="letter-spacing:1px;">― line ―</button>
           <div class="tb-sep"></div>
-          <label title="Insert image" style="cursor:pointer;font-size:13px;padding:2px 6px;background:var(--grey-light);border:1px solid var(--grey-mid);border-radius:4px;">
+          <label title="Insert image" style="cursor:pointer;font-size:13px;padding:2px 6px;background:var(--grey-light);border:1px solid var(--grey-mid);border-radius:4px;" onclick="saveFooterCursor()">
             &#128444; Image
             <input type="file" accept="image/*" style="display:none;" onchange="insertFooterImage(this, 'left')">
           </label>
@@ -2646,13 +2646,21 @@ function fmtClear() {
 }
 function fmtHRule() { fmtHRuleFor('footerEditor'); }
 
+let _savedFooterRange = null;
+
+function saveFooterCursor() {
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount) {
+    _savedFooterRange = sel.getRangeAt(0).cloneRange();
+  }
+}
+
 function insertFooterImage(input, align) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];
   const reader = new FileReader();
   reader.onload = function(e) {
     const editor = document.getElementById('footerEditor');
-    editor.focus();
     const img = document.createElement('img');
     img.src = e.target.result;
     img.style.width = '150px';
@@ -2661,12 +2669,20 @@ function insertFooterImage(input, align) {
     img.style.marginLeft = align === 'center' ? 'auto' : (align === 'right' ? 'auto' : '0');
     img.style.marginRight = align === 'center' ? 'auto' : (align === 'right' ? '0' : 'auto');
     img.setAttribute('data-footer-img', 'true');
-    // Insert at cursor or end
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount) {
-      const range = sel.getRangeAt(0);
-      range.collapse(false);
-      range.insertNode(img);
+    // Restore saved cursor position, otherwise append at end
+    if (_savedFooterRange) {
+      editor.focus();
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(_savedFooterRange);
+      _savedFooterRange.collapse(false);
+      _savedFooterRange.insertNode(img);
+      // Move cursor after inserted image
+      _savedFooterRange.setStartAfter(img);
+      _savedFooterRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(_savedFooterRange);
+      _savedFooterRange = null;
     } else {
       editor.appendChild(img);
     }
