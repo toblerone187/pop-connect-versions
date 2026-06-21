@@ -2878,24 +2878,29 @@ function markUnsaved() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveSession();
-    // Show download reminder if not downloaded in a while
-    const lastDl = localStorage.getItem('pop_last_download');
-    if (!lastDl || (Date.now() - parseInt(lastDl)) > 7 * 24 * 60 * 60 * 1000) {
-      showDownloadReminder();
-    }
-  }, 2000);
+    showSaveBanner();
+  }, 3000);
 }
 
-function showDownloadReminder() {
+function showSaveBanner() {
   const banner = document.getElementById('saveBanner');
-  document.getElementById('saveInfo').textContent = '💾 Changes saved to browser — download updated file for safe keeping';
+  if (!banner) return;
+  // Choose message based on how long since last download
+  const lastDl = localStorage.getItem('pop_last_download');
+  const overdue = !lastDl || (Date.now() - parseInt(lastDl)) > 7 * 24 * 60 * 60 * 1000;
+  const msg = overdue
+    ? '💾 Changes saved to browser — download updated file for safe keeping'
+    : '✓ Changes auto-saved to browser';
+  document.getElementById('saveInfo').textContent = msg;
   banner.classList.add('visible');
-  // Auto-hide after 10 seconds if not interacted with
+  // Auto-hide after 5 seconds
   clearTimeout(banner._hideTimer);
   banner._hideTimer = setTimeout(() => {
     banner.classList.remove('visible');
-  }, 10000);
+  }, 5000);
 }
+
+function showDownloadReminder() { showSaveBanner(); }
 
 function downloadUpdatedFile() {
   // Save first
