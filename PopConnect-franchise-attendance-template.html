@@ -994,15 +994,24 @@ v1.1
       <div class="form-group">
         <label>Description / links</label>
         <div class="rich-toolbar" id="charityToolbar">
-          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('undo',false,null)" title="Undo" style="font-size:14px;">↩</button>
-          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('redo',false,null)" title="Redo" style="font-size:14px;">↪</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('undo',false,null)" title="Undo (Ctrl+Z)" style="font-size:14px;">↩</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('redo',false,null)" title="Redo (Ctrl+Y)" style="font-size:14px;">↪</button>
           <span style="color:var(--grey-mid);margin:0 4px;">|</span>
           <button onclick="document.getElementById('charityDesc').focus();document.execCommand('bold',false,null)" title="Bold"><b>B</b></button>
           <button onclick="document.getElementById('charityDesc').focus();document.execCommand('italic',false,null)" title="Italic"><i>I</i></button>
           <button onclick="document.getElementById('charityDesc').focus();document.execCommand('underline',false,null)" title="Underline"><u>U</u></button>
           <div class="tb-sep"></div>
-          <button onclick="fmtLink()" title="Insert link">&#128279;</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('fontSize',false,'4')" title="Large text" style="font-size:15px;font-weight:600;">A+</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('fontSize',false,'3')" title="Normal text">A</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('fontSize',false,'2')" title="Small text" style="font-size:11px;">A-</button>
+          <div class="tb-sep"></div>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('justifyLeft',false,null)" title="Align left">&#8676;</button>
+          <button onclick="document.getElementById('charityDesc').focus();document.execCommand('justifyCenter',false,null)" title="Centre">&#8578;</button>
+          <div class="tb-sep"></div>
+          <button onclick="fmtLinkFor('charityDesc')" title="Insert link">&#128279;</button>
           <button onclick="document.getElementById('charityDesc').focus();document.execCommand('removeFormat',false,null)" title="Clear formatting" style="color:#999;">&#10006;</button>
+          <div class="tb-sep"></div>
+          <button onclick="fmtHRuleFor('charityDesc')" title="Insert horizontal divider line" style="letter-spacing:1px;">― line ―</button>
         </div>
         <div id="charityDesc" contenteditable="true" spellcheck="true" style="min-height:60px;padding:8px;border:1px solid var(--grey-mid);border-radius:6px;font-size:14px;line-height:1.5;"></div>
       </div>
@@ -2599,10 +2608,11 @@ function fmtAlign(align) {
   document.getElementById('footerEditor').focus();
   document.execCommand('justify' + align.charAt(0).toUpperCase() + align.slice(1), false, null);
 }
-function fmtLink() {
+function fmtLink() { fmtLinkFor('footerEditor'); }
+function fmtLinkFor(editorId) {
   const url = prompt('Enter URL:', 'https://');
   if (url) {
-    document.getElementById('footerEditor').focus();
+    document.getElementById(editorId).focus();
     document.execCommand('createLink', false, url);
   }
 }
@@ -2610,8 +2620,9 @@ function fmtClear() {
   document.getElementById('footerEditor').focus();
   document.execCommand('removeFormat', false, null);
 }
-function fmtHRule() {
-  const editor = document.getElementById('footerEditor');
+function fmtHRule() { fmtHRuleFor('footerEditor'); }
+function fmtHRuleFor(editorId) {
+  const editor = document.getElementById(editorId);
   editor.focus();
   // Insert an HR element at cursor position
   const sel = window.getSelection();
@@ -2630,6 +2641,7 @@ function fmtHRule() {
 }
 
 // ─── AUTO-SAVE SYSTEM ────────────────────────────────────────────────────────
+const FILE_ID = 'PLACEHOLDER';
 const STORAGE_KEY = 'template_session';
 let saveTimer = null;
 let lastSaveTime = null;
@@ -2870,12 +2882,10 @@ function loadSession() {
         localStorage.removeItem(STORAGE_KEY);
         return false;
       }
-      // Clear session if it belongs to a different file version or has no fileId (pre-FILE_ID session)
-      if (typeof FILE_ID !== 'undefined') {
-        if (!s.fileId || s.fileId !== FILE_ID) {
-          localStorage.removeItem(STORAGE_KEY);
-          return false;
-        }
+      // Clear session if FILE_ID is unset, is a placeholder, or doesn't match
+      if (FILE_ID === 'PLACEHOLDER' || !s.fileId || s.fileId !== FILE_ID) {
+        localStorage.removeItem(STORAGE_KEY);
+        return false;
       }
     }
     if (saved) {
