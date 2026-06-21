@@ -1907,7 +1907,7 @@ function collectData() {
         h=h.replace(/const STORAGE_KEY = '[^']+';/g,"const STORAGE_KEY = '"+storageKey+"';");
         // Set unique FILE_ID to prevent cache collisions when opened in same browser
         const newFileId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-        h=h.replace(/const FILE_ID = '[^']+';/,"const FILE_ID = '" + newFileId + "';");
+        h=h.replace(/const FILE_ID = '[^']+';/g,"const FILE_ID = '" + newFileId + "';");
         // Members are baked into DEFAULT_MEMBERS — no localStorage key replacement needed
         h=h.replace(/const UPDATE_FILE = '[^']+';/,"const UPDATE_FILE = '"+updateFile+"';");
         h=h.replace(/id="groupName" value="[^"]*"/,'id="groupName" value="'+groupName+'"');
