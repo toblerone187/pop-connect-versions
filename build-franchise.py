@@ -98,7 +98,7 @@ function saveMembers() {'''
     const franchiseTer = esc(document.getElementById('franchiseTerritory')?.value || '');
     if (franchiseCo && franchiseTer) {
       const franchiseNotice = `Pop Connect ${franchiseTer} is a franchise independently owned and operated by ${franchiseCo} with the written consent of Pop Franchising Limited`;
-      bodyParts.push(`<w:p><w:pPr><w:spacing w:after="0" w:before="400"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">${franchiseNotice}</w:t></w:r></w:p>`);
+      bodyParts.push(`<w:p><w:pPr><w:spacing w:after="0" w:before="400"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:i/><w:sz w:val="22"/><w:szCs w:val="22"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">${franchiseNotice}</w:t></w:r></w:p>`);
     }
     bodyParts.push('<w:sectPr>"""
     assert old in h, 'PATCH FAILED: franchise notice in Word'

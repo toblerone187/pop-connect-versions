@@ -1784,6 +1784,8 @@ function collectData() {
 
       // Skip non-member cells
       if (!lines.length || NONSENSE.test(firstLine)) { i++; continue; }
+      // Skip lines like "Beks Houston subbing" — name with subbing note but no category brackets
+      if (/\bsubbing\b/i.test(firstLine) && !firstLine.includes('(')) { i++; continue; }
 
       // ── Extract name and optional category ──────────────────────────────
       // Strip any appended status text e.g. "Greg Reece     DOUBLE MEMBER" or "Kevan Wimborne    HOST"
@@ -2432,30 +2434,32 @@ async function generateDoc() {
 
     let memberRows = membersHdr;
     data.memberData.forEach(mbr => { memberRows += memberRow(mbr); });
-    const blankVisitorRow = () => visitorRow({name:'',biz:'',bizname:'',email:'',phone:'',note:''});
+    // One blank visitor row = one table row with four blank paragraphs in the left cell
+    // matching the member cell layout: name line, business line, email line, phone line
+    const blankVisitorSingleRow = () => {
+      const blankLine = sz => `<w:p><w:pPr><w:spacing w:after="0" w:before="0"/><w:ind w:left="100" w:right="100"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr><w:t> </w:t></w:r></w:p>`;
+      const left = `<w:p><w:pPr><w:spacing w:after="0" w:before="100"/><w:ind w:left="100" w:right="100"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t> </w:t></w:r></w:p>`
+        + blankLine('24') + blankLine('24')
+        + `<w:p><w:pPr><w:spacing w:after="60" w:before="0"/><w:ind w:left="100" w:right="100"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t> </w:t></w:r></w:p>`;
+      return tr(tc(left,{width:5778}) + tc(pi('',{after:0,shd:'FFFFFF'}),{width:4536,shd:'FFFFFF'}), {cantSplit:true});
+    };
     const showBlankVisiting  = document.getElementById('showBlankVisiting')?.checked;
     const showBlankCommunity = document.getElementById('showBlankCommunity')?.checked;
     const showBlankVisitors  = document.getElementById('showBlankVisitors')?.checked;
     if (data.visitingMembers.length || showBlankVisiting) {
       memberRows += sectionHdr('VISITING MEMBERS');
       data.visitingMembers.forEach(v => { memberRows += visitorRow(v); });
-      if (!data.visitingMembers.length && showBlankVisiting) {
-        memberRows += blankVisitorRow() + blankVisitorRow() + blankVisitorRow() + blankVisitorRow();
-      }
+      if (!data.visitingMembers.length && showBlankVisiting) memberRows += blankVisitorSingleRow();
     }
     if (data.communityMembers?.length || showBlankCommunity) {
       memberRows += sectionHdr('VISITING COMMUNITY MEMBERS');
       data.communityMembers?.forEach(v => { memberRows += visitorRow(v); });
-      if (!data.communityMembers?.length && showBlankCommunity) {
-        memberRows += blankVisitorRow() + blankVisitorRow() + blankVisitorRow() + blankVisitorRow();
-      }
+      if (!data.communityMembers?.length && showBlankCommunity) memberRows += blankVisitorSingleRow();
     }
     if (data.visitors.length || showBlankVisitors) {
       memberRows += sectionHdr('VISITORS');
       data.visitors.forEach(v => { memberRows += visitorRow(v); });
-      if (!data.visitors.length && showBlankVisitors) {
-        memberRows += blankVisitorRow() + blankVisitorRow() + blankVisitorRow() + blankVisitorRow();
-      }
+      if (!data.visitors.length && showBlankVisitors) memberRows += blankVisitorSingleRow();
     }
     bodyParts.push(tbl(memberRows,[5778,4536]));
 
@@ -2618,7 +2622,7 @@ async function generateDoc() {
     const franchiseTer = esc(document.getElementById('franchiseTerritory')?.value || '');
     if (franchiseCo && franchiseTer) {
       const franchiseNotice = `Pop Connect ${franchiseTer} is a franchise independently owned and operated by ${franchiseCo} with the written consent of Pop Franchising Limited`;
-      bodyParts.push(`<w:p><w:pPr><w:spacing w:after="0" w:before="400"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">${franchiseNotice}</w:t></w:r></w:p>`);
+      bodyParts.push(`<w:p><w:pPr><w:spacing w:after="0" w:before="400"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:i/><w:sz w:val="22"/><w:szCs w:val="22"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">${franchiseNotice}</w:t></w:r></w:p>`);
     }
     bodyParts.push('<w:sectPr><w:pgSz w:w="11906" w:h="16838" w:code="9"/><w:pgMar w:top="720" w:right="907" w:bottom="284" w:left="907" w:header="454" w:footer="57" w:gutter="0"/></w:sectPr>');
 
