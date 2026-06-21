@@ -1027,7 +1027,7 @@ v1.1
           <div class="tb-sep"></div>
           <button onclick="fmtHRule()" title="Insert horizontal divider line" style="letter-spacing:1px;">― line ―</button>
         </div>
-        <div id="footerEditor" contenteditable="true" spellcheck="true"><p>Please contact <b>[Host Name]</b> if you have any questions.</p><hr><p>Should any details be incorrect on an attendance sheet, please inform your host of any changes.</p></div>
+        <div id="footerEditor" contenteditable="true" spellcheck="true"><p>Should any details be incorrect on an attendance sheet, please inform your host of any changes.</p></div>
       </div>
     </div>
   </div>
@@ -1355,8 +1355,8 @@ function addPastRow(date='', p1='', p2='') {
 }
 
 function initPresentations() {
-  DEFAULT_FUTURE.forEach(r => addFutureRow(r.date, r.p1, r.p2));
-  DEFAULT_PAST.forEach(r => addPastRow(r.date, r.p1, r.p2));
+  DEFAULT_FUTURE.forEach(r => addFutureRow(r.date, r.presenter1 || r.p1 || '', r.presenter2 || r.p2 || ''));
+  DEFAULT_PAST.forEach(r => addPastRow(r.date, r.presenter1 || r.p1 || '', r.presenter2 || r.p2 || ''));
 }
 
 // ─── COLLECT DATA ─────────────────────────────────────────────────────────
@@ -1792,14 +1792,10 @@ function collectData() {
     }
 
     // ── Presentations ─────────────────────────────────────────────────────
-    // Skip past any section header (WHO WOULD, INVITE etc.) to reach first date/month cell.
-    // Stop if we hit a VISITOR_STOP section (those docs have no presentations table).
+    // Scan forward past visiting members, visitors, WHO WOULD etc. to find first date/month cell.
     while (i < cells.length
       && !DATE_START.test(cellLines(cells[i])[0]||'')
-      && !MONTH_ONLY.test(cellLines(cells[i])[0]||'')
-      && !VISITOR_STOP.test(cellLines(cells[i])[0]||'')
-      && !/WHO WOULD|INVITE|BUSINESSES WANTED/i.test(cellLines(cells[i])[0]||'')) i++;
-    while (i < cells.length && (/WHO WOULD|INVITE|BUSINESSES WANTED/i.test(cellLines(cells[i])[0]||''))) i++;
+      && !MONTH_ONLY.test(cellLines(cells[i])[0]||'')) i++;
 
     const DATE_RE  = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+/i;
     const MONTHS   = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
@@ -1813,7 +1809,6 @@ function collectData() {
     while (i < cells.length) {
       const txt = cellLines(cells[i])[0] || '';
       if (!txt) { i++; continue; }
-      if (VISITOR_STOP.test(txt)) break;
 
       // Standard format: "Mon 8th June 2026" / presenter1 / presenter2 in next two cells
       if (DATE_RE.test(txt) || DATE_START.test(txt)) {
@@ -1979,6 +1974,10 @@ function collectData() {
         }
         h=h.replace(/function preload\w+Session\(\)[\s\S]*?(?=\n  function|\n  setTimeout)/,'');
         h=h.replace(/preload\w+Session\(\);/,'');
+        // Replace [Host Name] placeholder in footer with actual host name
+        if (hostName) {
+          h = h.replace(/\[Host Name\]/g, hostName);
+        }
         const safeName=groupName.toLowerCase().replace(/[^a-z0-9]+/g,'-');
         const blob=new Blob([h],{type:'text/html'});
         const url=URL.createObjectURL(blob);
