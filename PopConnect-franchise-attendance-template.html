@@ -1046,6 +1046,14 @@ v1.1
           <button onclick="fmtClear()" title="Clear formatting" style="color:#999;">&#10006;</button>
           <div class="tb-sep"></div>
           <button onclick="fmtHRule()" title="Insert horizontal divider line" style="letter-spacing:1px;">― line ―</button>
+          <div class="tb-sep"></div>
+          <label title="Insert image" style="cursor:pointer;font-size:13px;padding:2px 6px;background:var(--grey-light);border:1px solid var(--grey-mid);border-radius:4px;">
+            &#128444; Image
+            <input type="file" accept="image/*" style="display:none;" onchange="insertFooterImage(this, 'left')">
+          </label>
+          <button onclick="alignFooterImage('left')" title="Image left">&#8612;</button>
+          <button onclick="alignFooterImage('center')" title="Image centre">&#8606;</button>
+          <button onclick="alignFooterImage('right')" title="Image right">&#8614;</button>
         </div>
         <div id="footerEditor" contenteditable="true" spellcheck="true"><p>Should any details be incorrect on an attendance sheet, please inform your host of any changes.</p></div>
       </div>
@@ -1929,7 +1937,7 @@ function collectData() {
         h=h.replace(/const STORAGE_KEY = '[^']+';/g,"const STORAGE_KEY = '"+storageKey+"';");
         // Set unique FILE_ID to prevent cache collisions when opened in same browser
         const newFileId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-        h=h.replace(/const FILE_ID = '[^']+';/,"const FILE_ID = '" + newFileId + "';");
+        h=h.replace(/const FILE_ID = '[^']+';/g,"const FILE_ID = '" + newFileId + "';");
         // Members are baked into DEFAULT_MEMBERS — no localStorage key replacement needed
         h=h.replace(/const UPDATE_FILE = '[^']+';/,"const UPDATE_FILE = '"+updateFile+"';");
         h=h.replace(/id="groupName" value="[^"]*"/,'id="groupName" value="'+groupName+'"');
@@ -2664,6 +2672,58 @@ function fmtClear() {
   document.execCommand('removeFormat', false, null);
 }
 function fmtHRule() { fmtHRuleFor('footerEditor'); }
+
+function insertFooterImage(input, align) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const editor = document.getElementById('footerEditor');
+    editor.focus();
+    const img = document.createElement('img');
+    img.src = e.target.result;
+    img.style.width = '150px';
+    img.style.maxWidth = '100%';
+    img.style.display = 'block';
+    img.style.marginLeft = align === 'center' ? 'auto' : (align === 'right' ? 'auto' : '0');
+    img.style.marginRight = align === 'center' ? 'auto' : (align === 'right' ? '0' : 'auto');
+    img.setAttribute('data-footer-img', 'true');
+    // Insert at cursor or end
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const range = sel.getRangeAt(0);
+      range.collapse(false);
+      range.insertNode(img);
+    } else {
+      editor.appendChild(img);
+    }
+    markUnsaved();
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function alignFooterImage(align) {
+  const editor = document.getElementById('footerEditor');
+  const imgs = editor.querySelectorAll('img[data-footer-img]');
+  // Align the most recently inserted or selected image
+  const sel = window.getSelection();
+  let target = null;
+  if (sel && sel.rangeCount) {
+    const node = sel.anchorNode;
+    if (node && node.nodeType === 1) target = node.querySelector('img[data-footer-img]');
+    if (!target && node) {
+      const parent = node.parentElement;
+      if (parent) target = parent.querySelector('img[data-footer-img]');
+    }
+  }
+  if (!target && imgs.length) target = imgs[imgs.length - 1];
+  if (target) {
+    target.style.marginLeft = align === 'center' ? 'auto' : (align === 'right' ? 'auto' : '0');
+    target.style.marginRight = align === 'center' ? 'auto' : (align === 'right' ? '0' : 'auto');
+    markUnsaved();
+  }
+}
 function fmtHRuleFor(editorId) {
   const editor = document.getElementById(editorId);
   editor.focus();
@@ -2837,8 +2897,8 @@ function updateSaveIndicator(msg, saved) {
 
 function markUnsaved() {
   hasUnsavedChanges = true;
-  updateSaveIndicator('Unsaved changes...', false);
-  // Debounce — save after 2 seconds of inactivity
+  updateSaveIndicator('Unsaved changes — saving...', false);
+  // Debounce — save 2 seconds after last change
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveSession();
@@ -2847,7 +2907,7 @@ function markUnsaved() {
     if (!lastDl || (Date.now() - parseInt(lastDl)) > 7 * 24 * 60 * 60 * 1000) {
       showDownloadReminder();
     }
-  }, 10000);
+  }, 2000);
 }
 
 function showDownloadReminder() {
