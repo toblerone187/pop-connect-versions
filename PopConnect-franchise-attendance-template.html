@@ -785,7 +785,13 @@ v1.1
     <div class="card-body">
       <p style="font-size:12px;color:var(--grey-text);margin-bottom:12px;">Members of other Pop Connect groups attending today as visitors or subs.</p>
       <div class="visitor-list" id="visitingList"></div>
-      <button class="btn-add-row" onclick="addVisiting()">+ Add Visiting Member</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
+        <button class="btn-add-row" onclick="addVisiting()">+ Add Visiting Member</button>
+        <label style="font-size:12px;color:var(--grey-text);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="showBlankVisiting" onchange="markUnsaved()">
+          Show blank rows on sheet
+        </label>
+      </div>
     </div>
   </div>
 
@@ -795,7 +801,13 @@ v1.1
     <div class="card-body">
       <p style="font-size:12px;color:var(--grey-text);margin-bottom:12px;">Community members attending today.</p>
       <div class="visitor-list" id="communityList"></div>
-      <button class="btn-add-row" onclick="addCommunity()">+ Add Community Member</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
+        <button class="btn-add-row" onclick="addCommunity()">+ Add Community Member</button>
+        <label style="font-size:12px;color:var(--grey-text);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="showBlankCommunity" onchange="markUnsaved()">
+          Show blank rows on sheet
+        </label>
+      </div>
     </div>
   </div>
   <!-- Visitors -->
@@ -804,7 +816,13 @@ v1.1
     <div class="card-body">
       <p style="font-size:12px;color:var(--grey-text);margin-bottom:12px;">Guests attending today who are not Pop Connect members.</p>
       <div class="visitor-list" id="visitorList"></div>
-      <button class="btn-add-row" onclick="addVisitor()">+ Add Visitor</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
+        <button class="btn-add-row" onclick="addVisitor()">+ Add Visitor</button>
+        <label style="font-size:12px;color:var(--grey-text);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="showBlankVisitors" onchange="markUnsaved()">
+          Show blank rows on sheet
+        </label>
+      </div>
     </div>
   </div>
 
@@ -1521,7 +1539,7 @@ function collectData() {
 
 
   // ── Setup Wizard ───────────────────────────────────────────────────────
-  let wizType = '', wizSource = '', wizParsedMembers = [], wizGroupNameFromDoc = '', wizVenueFromDoc = '', wizMeetingDateFromDoc = '';
+  let wizType = '', wizSource = '', wizParsedMembers = [], wizGroupNameFromDoc = '', wizVenueFromDoc = '', wizMeetingDateFromDoc = '', wizNextMeetingFromDoc = '';
   let wizFuturePresentations = [], wizPastPresentations = [];
 
   function renderWizTypeGrid() {
@@ -1549,7 +1567,7 @@ function collectData() {
   function openWizard() {
     document.getElementById('wizardOverlay').classList.add('open');
     renderWizTypeGrid();
-    wizGoTo(1); wizType=''; wizSource=''; wizParsedMembers=[]; wizGroupNameFromDoc=''; wizVenueFromDoc=''; wizMeetingDateFromDoc='';
+    wizGoTo(1); wizType=''; wizSource=''; wizParsedMembers=[]; wizGroupNameFromDoc=''; wizVenueFromDoc=''; wizMeetingDateFromDoc=''; wizNextMeetingFromDoc='';
     wizPrefillHost=''; wizPrefillGroup=''; wizPrefillVenue='';
     wizFuturePresentations=[]; wizPastPresentations=[];
     document.querySelectorAll('.wiz-type-btn,.wiz-source-btn').forEach(b=>b.classList.remove('selected'));
@@ -1683,6 +1701,7 @@ function collectData() {
     // Extract meeting date from header — handles dd/mm/yyyy, dd/mm/yy, dd.mm.yy, dd.mm.yyyy,
     // "15.5.26", "15/05/2026", "Thursday 11th June 2026", "Thurs 18th June 11pm" (no year)
     wizMeetingDateFromDoc = '';
+    wizNextMeetingFromDoc = '';
     for (const para of h0) {
       // Full date with day name and year: "Thursday 11th June 2026" or "Thurs 18th June 2026"
       const fullDate = para.match(/(?:Mon(?:day)?|Tues?(?:day)?|Wed(?:nesdays?)?|Thur?s?(?:day)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/i);
@@ -1709,6 +1728,21 @@ function collectData() {
     for (const para of h0) {
       const venueLabel = para.match(/^VENUE\s*:\s*(.+)/i);
       if (venueLabel && venueLabel[1].trim().length > 3) { wizVenueFromDoc = venueLabel[1].trim(); break; }
+    }
+
+    // Extract next meeting from body-level paragraphs (e.g. "NEXT MEETING: Monday 13th July 2026")
+    wizNextMeetingFromDoc = '';
+    const bodyEl = doc.querySelector('body');
+    if (bodyEl) {
+      Array.from(bodyEl.children).forEach(node => {
+        if (node.tagName && node.tagName.toLowerCase() === 'p') {
+          const txt = Array.from(node.querySelectorAll('t')).map(t=>t.textContent||'').join('').trim();
+          const nm = txt.match(/^NEXT\s+MEETING\s*:\s*(.+)/i);
+          if (nm && nm[1].trim().length > 3 && !wizNextMeetingFromDoc) {
+            wizNextMeetingFromDoc = nm[1].trim();
+          }
+        }
+      });
     }
     if (!wizVenueFromDoc) {
       for (const para of h0) {
@@ -1822,46 +1856,47 @@ function collectData() {
     }
 
     // ── Presentations ─────────────────────────────────────────────────────
-    // Scan forward past visiting members, visitors, WHO WOULD etc. to find first date/month cell.
-    while (i < cells.length
-      && !DATE_START.test(cellLines(cells[i])[0]||'')
-      && !MONTH_ONLY.test(cellLines(cells[i])[0]||'')) i++;
+    // The sheet has standalone paragraphs "Future Presentations:" and "Past Presentations:"
+    // between the member table and the presentation tables. Read those directly from
+    // the body-level XML — they don't appear as table cells.
 
-    const DATE_RE  = /^(?:Mon(?:day)?|Tues?(?:day)?|Wed(?:nesday)?s?|Thur?s?(?:day)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+\d+/i;
+    const DATE_RE = /^(?:Mon(?:day)?|Tues?(?:day)?|Wed(?:nesday)?s?|Thur?s?(?:day)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s+\d+/i;
 
     wizFuturePresentations = [];
     wizPastPresentations   = [];
 
-    // Track which section we're in — default to future.
-    // Switch to past when we see a "Past Presentations" label in the sheet.
-    let inPast = false;
+    // Get body children in document order: paragraphs and tables
+    const body = doc.querySelector('body');
+    if (body) {
+      let currentSection = null; // null = not yet, 'future', 'past'
+      Array.from(body.children).forEach(node => {
+        const tag = node.tagName ? node.tagName.toLowerCase() : '';
 
-    while (i < cells.length) {
-      const txt = cellLines(cells[i])[0] || '';
-      if (!txt) { i++; continue; }
+        // Standalone paragraph — check for section label
+        if (tag === 'p') {
+          const txt = Array.from(node.querySelectorAll('t')).map(t => t.textContent||'').join('').trim();
+          if (/future\s+pres/i.test(txt)) { currentSection = 'future'; return; }
+          if (/past\s+pres/i.test(txt))   { currentSection = 'past';   return; }
+        }
 
-      // Section label — switch between future and past
-      if (/^past\s+pres/i.test(txt)) { inPast = true; i++; continue; }
-      if (/^future\s+pres/i.test(txt) || /^upcoming\s+pres/i.test(txt)) { inPast = false; i++; continue; }
-
-      // Standard format: date cell / presenter1 / presenter2 in next two cells
-      if (DATE_RE.test(txt) || DATE_START.test(txt)) {
-        const p1 = i+1 < cells.length ? (cellLines(cells[i+1])[0]||'') : '';
-        const p2 = i+2 < cells.length && !DATE_RE.test(cellLines(cells[i+2])[0]||'') && !DATE_START.test(cellLines(cells[i+2])[0]||'') ? (cellLines(cells[i+2])[0]||'') : '';
-        (inPast ? wizPastPresentations : wizFuturePresentations).push({date:txt, presenter1:p1, presenter2:p2});
-        i += 3;
-
-      // Month-only format: "January" / "Melissa and Toby" in next cell
-      } else if (MONTH_ONLY.test(txt)) {
-        const presCell = i+1 < cells.length ? (cellLines(cells[i+1])[0]||'') : '';
-        const presClean = presCell.replace(/\s*\(guest presenters?\)/i,'').trim();
-        const parts = presClean.split(/\s*[&,]\s*/);
-        const p1 = parts[0]||'', p2 = parts[1]||'';
-        const dateLabel = txt + ' ' + new Date().getFullYear();
-        (inPast ? wizPastPresentations : wizFuturePresentations).push({date:dateLabel, presenter1:p1, presenter2:p2});
-        i += 2;
-
-      } else { i++; }
+        // Table — read rows if we're in a presentations section
+        if (tag === 'tbl' && currentSection) {
+          const rows = Array.from(node.querySelectorAll('tr'));
+          rows.forEach(row => {
+            const tcs = Array.from(row.querySelectorAll('tc'));
+            if (tcs.length < 1) return;
+            const date = Array.from(tcs[0].querySelectorAll('t')).map(t=>t.textContent||'').join('').trim();
+            if (!date || (!DATE_RE.test(date) && !DATE_START.test(date))) return;
+            const p1 = tcs.length > 1 ? Array.from(tcs[1].querySelectorAll('t')).map(t=>t.textContent||'').join('').trim() : '';
+            const p2 = tcs.length > 2 ? Array.from(tcs[2].querySelectorAll('t')).map(t=>t.textContent||'').join('').trim() : '';
+            if (currentSection === 'past') {
+              wizPastPresentations.push({date, presenter1:p1, presenter2:p2});
+            } else {
+              wizFuturePresentations.push({date, presenter1:p1, presenter2:p2});
+            }
+          });
+        }
+      });
     }
 
     return parsed;
@@ -1898,6 +1933,10 @@ function collectData() {
     if (wizPrefillDate) {
       const wd = document.getElementById('wizMeetingDate');
       if (wd) wd.value = wizPrefillDate;
+    }
+    if (wizNextMeetingFromDoc) {
+      const nm = document.getElementById('nextMeeting');
+      if (nm) nm.value = wizNextMeetingFromDoc;
     }
     const ff = document.getElementById('wizFranchiseFields');
     if (ff && wizType && wizType.startsWith('franchise_')) ff.style.display = 'block';
@@ -2393,17 +2432,30 @@ async function generateDoc() {
 
     let memberRows = membersHdr;
     data.memberData.forEach(mbr => { memberRows += memberRow(mbr); });
-    if (data.visitingMembers.length) {
+    const blankVisitorRow = () => visitorRow({name:'',biz:'',bizname:'',email:'',phone:'',note:''});
+    const showBlankVisiting  = document.getElementById('showBlankVisiting')?.checked;
+    const showBlankCommunity = document.getElementById('showBlankCommunity')?.checked;
+    const showBlankVisitors  = document.getElementById('showBlankVisitors')?.checked;
+    if (data.visitingMembers.length || showBlankVisiting) {
       memberRows += sectionHdr('VISITING MEMBERS');
       data.visitingMembers.forEach(v => { memberRows += visitorRow(v); });
+      if (!data.visitingMembers.length && showBlankVisiting) {
+        memberRows += blankVisitorRow() + blankVisitorRow() + blankVisitorRow() + blankVisitorRow();
+      }
     }
-    if (data.communityMembers?.length) {
+    if (data.communityMembers?.length || showBlankCommunity) {
       memberRows += sectionHdr('VISITING COMMUNITY MEMBERS');
-      data.communityMembers.forEach(v => { memberRows += visitorRow(v); });
+      data.communityMembers?.forEach(v => { memberRows += visitorRow(v); });
+      if (!data.communityMembers?.length && showBlankCommunity) {
+        memberRows += blankVisitorRow() + blankVisitorRow() + blankVisitorRow() + blankVisitorRow();
+      }
     }
-    if (data.visitors.length) {
+    if (data.visitors.length || showBlankVisitors) {
       memberRows += sectionHdr('VISITORS');
       data.visitors.forEach(v => { memberRows += visitorRow(v); });
+      if (!data.visitors.length && showBlankVisitors) {
+        memberRows += blankVisitorRow() + blankVisitorRow() + blankVisitorRow() + blankVisitorRow();
+      }
     }
     bodyParts.push(tbl(memberRows,[5778,4536]));
 
@@ -2811,6 +2863,9 @@ function getSessionData() {
     visitors: getVisitorRows('visitorList'),
     futurePres: getPresRows('futurePresTbody'),
     pastPres: getPresRows('pastPresTbody'),
+    showBlankVisiting:  document.getElementById('showBlankVisiting')?.checked || false,
+    showBlankCommunity: document.getElementById('showBlankCommunity')?.checked || false,
+    showBlankVisitors:  document.getElementById('showBlankVisitors')?.checked || false,
     bizWanted: document.getElementById('bizWanted')?.value || '',
     footerNotes: document.getElementById('footerEditor')?.innerHTML || '',
     charity: getCharityData ? getCharityData() : null,
@@ -2877,6 +2932,10 @@ function restoreSessionData(session) {
   restorePres('futurePresTbody', session.futurePres, addFutureRow);
   restorePres('pastPresTbody',   session.pastPres,   addPastRow);
 
+  // Restore blank row checkboxes
+  if (session.showBlankVisiting  !== undefined) { const el = document.getElementById('showBlankVisiting');  if (el) el.checked = session.showBlankVisiting; }
+  if (session.showBlankCommunity !== undefined) { const el = document.getElementById('showBlankCommunity'); if (el) el.checked = session.showBlankCommunity; }
+  if (session.showBlankVisitors  !== undefined) { const el = document.getElementById('showBlankVisitors');  if (el) el.checked = session.showBlankVisitors; }
   // Restore biz wanted and footer (skip if null — use HTML defaults)
   if (session.bizWanted !== undefined && session.bizWanted !== null) {
     const bw = document.getElementById('bizWanted');
