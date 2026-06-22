@@ -492,6 +492,10 @@ v1.1
     display: flex; gap: 4px; padding: 6px 8px;
     background: var(--grey-light); border: 1px solid var(--grey-mid);
     border-bottom: none; border-radius: 6px 6px 0 0; flex-wrap: wrap;
+    align-items: center;
+  }
+  .rich-toolbar button, .rich-toolbar label {
+    align-self: center;
   }
   .rich-toolbar button {
     background: white; border: 1px solid var(--grey-mid);
@@ -1071,6 +1075,7 @@ v1.1
           <button onclick="alignFooterImage('left')" title="Image left">&#8612;</button>
           <button onclick="alignFooterImage('center')" title="Image centre">&#9776;</button>
           <button onclick="alignFooterImage('right')" title="Image right">&#8614;</button>
+          <button onclick="removeFooterImage()" title="Remove selected image" style="color:#999;">&#128465;</button>
         </div>
         <div id="footerEditor" contenteditable="true" spellcheck="true"><p>Should any details be incorrect on an attendance sheet, please inform your host of any changes.</p></div>
       </div>
@@ -1735,7 +1740,8 @@ function collectData() {
     const bodyEl = doc.querySelector('body');
     if (bodyEl) {
       Array.from(bodyEl.children).forEach(node => {
-        if (node.tagName && node.tagName.toLowerCase() === 'p') {
+        const tag = (node.tagName || '').toLowerCase();
+        if (tag === 'p' || tag.endsWith(':p')) {
           const txt = Array.from(node.querySelectorAll('t')).map(t=>t.textContent||'').join('').trim();
           const nm = txt.match(/^NEXT\s+MEETING\s*:\s*(.+)/i);
           if (nm && nm[1].trim().length > 3 && !wizNextMeetingFromDoc) {
@@ -1872,17 +1878,20 @@ function collectData() {
     if (body) {
       let currentSection = null; // null = not yet, 'future', 'past'
       Array.from(body.children).forEach(node => {
-        const tag = node.tagName ? node.tagName.toLowerCase() : '';
+        // tagName may be namespaced e.g. "w:p" or "w:tbl" — check suffix
+        const tag = (node.tagName || '').toLowerCase();
+        const isP   = tag === 'p'   || tag.endsWith(':p');
+        const isTbl = tag === 'tbl' || tag.endsWith(':tbl');
 
         // Standalone paragraph — check for section label
-        if (tag === 'p') {
+        if (isP) {
           const txt = Array.from(node.querySelectorAll('t')).map(t => t.textContent||'').join('').trim();
           if (/future\s+pres/i.test(txt)) { currentSection = 'future'; return; }
           if (/past\s+pres/i.test(txt))   { currentSection = 'past';   return; }
         }
 
         // Table — read rows if we're in a presentations section
-        if (tag === 'tbl' && currentSection) {
+        if (isTbl && currentSection) {
           const rows = Array.from(node.querySelectorAll('tr'));
           rows.forEach(row => {
             const tcs = Array.from(row.querySelectorAll('tc'));
@@ -2774,6 +2783,26 @@ function insertFooterImage(input, align) {
     input.value = '';
   };
   reader.readAsDataURL(file);
+}
+
+function removeFooterImage() {
+  const editor = document.getElementById('footerEditor');
+  // Remove the most recently inserted image, or the one containing the cursor
+  const imgs = editor.querySelectorAll('img[data-footer-img]');
+  const sel = window.getSelection();
+  let target = null;
+  if (sel && sel.rangeCount) {
+    const node = sel.anchorNode;
+    if (node) {
+      if (node.nodeType === 1 && node.getAttribute && node.getAttribute('data-footer-img')) {
+        target = node;
+      } else if (node.parentElement) {
+        target = node.parentElement.querySelector('img[data-footer-img]');
+      }
+    }
+  }
+  if (!target && imgs.length) target = imgs[imgs.length - 1];
+  if (target) { target.remove(); markUnsaved(); }
 }
 
 function alignFooterImage(align) {
