@@ -492,10 +492,11 @@ v1.1
     display: flex; gap: 4px; padding: 6px 8px;
     background: var(--grey-light); border: 1px solid var(--grey-mid);
     border-bottom: none; border-radius: 6px 6px 0 0; flex-wrap: wrap;
-    align-items: center;
+    align-items: center; overflow: hidden;
   }
   .rich-toolbar button, .rich-toolbar label {
-    align-self: center;
+    align-self: center; flex-shrink: 0;
+    max-height: 30px; overflow: hidden;
   }
   .rich-toolbar button {
     background: white; border: 1px solid var(--grey-mid);
@@ -1068,15 +1069,13 @@ v1.1
           <div class="tb-sep"></div>
           <button onclick="fmtHRule()" title="Insert horizontal divider line" style="letter-spacing:1px;">― line ―</button>
           <div class="tb-sep"></div>
-          <label title="Insert image" style="cursor:pointer;font-size:13px;padding:2px 6px;background:var(--grey-light);border:1px solid var(--grey-mid);border-radius:4px;" onclick="saveFooterCursor()">
-            &#128444; Image
-            <input type="file" accept="image/*" style="display:none;" onchange="insertFooterImage(this, 'left')">
-          </label>
+          <button title="Insert image" onclick="saveFooterCursor(); document.getElementById('footerImageInput').click();" style="font-size:13px;">&#128444; Image</button>
           <button onclick="alignFooterImage('left')" title="Image left">&#8612;</button>
           <button onclick="alignFooterImage('center')" title="Image centre">&#9776;</button>
           <button onclick="alignFooterImage('right')" title="Image right">&#8614;</button>
           <button onclick="removeFooterImage()" title="Remove selected image" style="color:#999;">&#128465;</button>
         </div>
+        <input type="file" id="footerImageInput" accept="image/*" style="display:none;" onchange="insertFooterImage(this, 'left')">
         <div id="footerEditor" contenteditable="true" spellcheck="true"><p>Should any details be incorrect on an attendance sheet, please inform your host of any changes.</p></div>
       </div>
     </div>
