@@ -4,7 +4,15 @@
 POP ATTENDANCE SHEET GENERATOR — CHANGELOG
 ================================================================================
 
-v1.21 - Current version
+v1.22 - Current version
+- Start here callout added to the blank template so the setup wizard is not missed
+- Rich text toolbar buttons no longer lose the text selection when clicked
+- Link button now requires text to be selected and keeps the selection through the URL prompt
+- Links inserted in footer and charity notes open in a new tab
+- Formatting, links, font sizes and divider lines now trigger auto-save correctly
+- Footer notes and charity notes restore with formatting intact on reopening
+
+v1.21
 - Members now imported from a wide range of host sheet formats
 - Meeting date, venue, group name, host name and next meeting auto-detected from uploaded sheet
 - Future and past presentations imported using sheet headings (Future Presentations / Past Presentations)
@@ -175,6 +183,38 @@ v1.1
     --amber: #e67e22;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* Start-here callout — shown on the blank template only */
+  .start-here {
+    display: none;
+    background: var(--blue-pale);
+    border: 2px solid var(--blue-dark);
+    border-left: 8px solid var(--blue-dark);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .start-here.visible { display: flex; }
+  .start-here .sh-text { flex: 1 1 340px; }
+  .start-here .sh-title {
+    font-size: 16px; font-weight: 700; color: var(--blue-dark);
+    margin-bottom: 5px; display: block;
+  }
+  .start-here .sh-body { font-size: 13px; color: var(--grey-text); line-height: 1.5; }
+  .start-here .sh-btn {
+    background: var(--blue-dark); color: white; border: none; border-radius: 8px;
+    padding: 13px 26px; font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: inherit; white-space: nowrap; flex: 0 0 auto;
+  }
+  .start-here .sh-btn:hover { background: var(--blue-mid); }
+  .start-here .sh-dismiss {
+    background: none; border: none; color: var(--grey-text); font-size: 12px;
+    cursor: pointer; font-family: inherit; text-decoration: underline;
+    padding: 0; flex: 0 0 auto;
+  }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--grey-light); color: var(--text); font-size: 15px; }
 
   header {
@@ -703,11 +743,23 @@ v1.1
   <div class="logo-circle">PC</div>
   <div>
     <h1>Pop Connect Franchise — Attendance Sheet Generator</h1>
-    <p>Fill in the details below and generate your Word doc in one click &nbsp;·&nbsp; <span style="opacity:0.7;font-size:11px;">v1.21</span></p>
+    <p>Fill in the details below and generate your Word doc in one click &nbsp;·&nbsp; <span style="opacity:0.7;font-size:11px;">v1.22</span></p>
   </div>
 </header>
 
 <div class="container">
+
+  <!-- Start-here callout: blank template only, hidden once a group file exists -->
+  <div class="start-here" id="startHere">
+    <div class="sh-text">
+      <span class="sh-title">Start here &mdash; this is the blank template</span>
+      <span class="sh-body">Before you fill anything in, create your group file. The setup wizard brings in your
+      member list and meeting details, then downloads your own file to work from. Anything you type on this
+      blank template will not carry across.</span>
+    </div>
+    <button class="sh-btn" onclick="openWizard()">&#10024; Create New Group File</button>
+    <button class="sh-dismiss" onclick="dismissStartHere()" title="Hide this message">I know, hide this</button>
+  </div>
 
   <!-- Meeting Details -->
   <div class="card">
@@ -2746,12 +2798,37 @@ function fmtAlign(align) {
   document.execCommand('justify' + align.charAt(0).toUpperCase() + align.slice(1), false, null);
 }
 function fmtLink() { fmtLinkFor('footerEditor'); }
+
+// prompt() blurs the editor and collapses the selection, so the range must be
+// captured before the dialog opens and restored afterwards.
+let _linkRange = null;
 function fmtLinkFor(editorId) {
-  const url = prompt('Enter URL:', 'https://');
-  if (url) {
-    document.getElementById(editorId).focus();
-    document.execCommand('createLink', false, url);
+  const editor = document.getElementById(editorId);
+  if (!editor) return;
+  _linkRange = null;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount) {
+    const r = sel.getRangeAt(0);
+    if (editor.contains(r.commonAncestorContainer) && !r.collapsed) {
+      _linkRange = r.cloneRange();
+    }
   }
+  if (!_linkRange) {
+    alert('Select the words you want to turn into a link first, then click the link button.');
+    return;
+  }
+  const url = prompt('Enter URL:', 'https://');
+  if (!url) { _linkRange = null; return; }
+  editor.focus();
+  const sel2 = window.getSelection();
+  sel2.removeAllRanges();
+  sel2.addRange(_linkRange);
+  document.execCommand('createLink', false, url);
+  editor.querySelectorAll('a').forEach(a => {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener');
+  });
+  _linkRange = null;
 }
 function fmtClear() {
   document.getElementById('footerEditor').focus();
@@ -3106,6 +3183,24 @@ function attachChangeWatchers() {
   if (fe) fe.addEventListener('input', markUnsaved);
   const cd = document.getElementById('charityDesc');
   if (cd) cd.addEventListener('input', markUnsaved);
+
+  // Toolbar buttons must not take focus, or the text selection is lost before
+  // the formatting command runs.
+  document.querySelectorAll('.rich-toolbar button').forEach(b => {
+    b.addEventListener('mousedown', e => e.preventDefault());
+  });
+
+  // Safety net: formatting, links, dividers and font sizes change the DOM
+  // without firing an 'input' event, so watch the editors directly.
+  if (window.MutationObserver) {
+    ['footerEditor', 'charityDesc'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      new MutationObserver(markUnsaved).observe(el, {
+        childList: true, subtree: true, characterData: true, attributes: true
+      });
+    });
+  }
   // Watch dynamic visitor lists via delegation
   document.addEventListener('input', (e) => {
     if (e.target.closest('#visitingList, #communityList, #visitorList, #futurePresTbody, #pastPresTbody')) {
@@ -3138,6 +3233,21 @@ function loadSession() {
 console.log('DEFAULT_MEMBERS count:', DEFAULT_MEMBERS.length, DEFAULT_MEMBERS.slice(0,2).map(m=>m.name));
 console.log('FILE_ID:', typeof FILE_ID !== 'undefined' ? FILE_ID : 'NOT SET');
 console.log('STORAGE_KEY:', STORAGE_KEY);
+// Start-here callout: only on the un-personalised template, and only until dismissed
+function dismissStartHere() {
+  try { localStorage.setItem('pop_starthere_dismissed', '1'); } catch(e) {}
+  const el = document.getElementById('startHere');
+  if (el) el.classList.remove('visible');
+}
+(function initStartHere() {
+  const el = document.getElementById('startHere');
+  if (!el) return;
+  const isBlankTemplate = (typeof FILE_ID === 'undefined' || FILE_ID === 'PLACEHOLDER');
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('pop_starthere_dismissed') === '1'; } catch(e) {}
+  if (isBlankTemplate && !dismissed) el.classList.add('visible');
+})();
+
 loadMembers();
 renderMembers();
 initPresentations();
@@ -3216,7 +3326,7 @@ window.addEventListener('beforeunload', (e) => {
   const GROUP_SUFFIX = 'Pop Connect';
   const TEMPLATE_TYPE = 'franchise';
   const UPDATE_FILE = 'PopConnect-franchise-attendance-template.html';
-  const CURRENT_VERSION = '1.21';
+  const CURRENT_VERSION = '1.22';
   const VERSION_URL = 'https://raw.githubusercontent.com/toblerone187/pop-connect-versions/main/version.json';
 
   window.addEventListener('load', function() { setTimeout(checkForUpdates, 2000); });
