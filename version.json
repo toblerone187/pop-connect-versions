@@ -1,4 +1,4 @@
 {
-  "version": "1.22",
-  "message": "v1.22 \u2014 Start here callout on the blank template, rich text formatting and links now save correctly, links open in a new tab"
+  "version": "1.23",
+  "message": "v1.23 \u2014 Fixed Word file corruption caused by ampersands in email addresses or link URLs"
 }

@@ -4,7 +4,11 @@
 POP ATTENDANCE SHEET GENERATOR — CHANGELOG
 ================================================================================
 
-v1.22 - Current version
+v1.23 - Current version
+- Fixed Word file corruption caused by ampersands in email addresses or link URLs
+- Hyperlink targets are now escaped correctly when the Word document is built
+
+v1.22
 - Start here callout added to the blank template so the setup wizard is not missed
 - Rich text toolbar buttons no longer lose the text selection when clicked
 - Link button now requires text to be selected and keeps the selection through the URL prompt
@@ -743,7 +747,7 @@ v1.1
   <div class="logo-circle">PC</div>
   <div>
     <h1>Pop Connect — Attendance Sheet Generator</h1>
-    <p>Fill in the details below and generate your Word doc in one click &nbsp;·&nbsp; <span style="opacity:0.7;font-size:11px;">v1.22</span></p>
+    <p>Fill in the details below and generate your Word doc in one click &nbsp;·&nbsp; <span style="opacity:0.7;font-size:11px;">v1.23</span></p>
   </div>
 </header>
 
@@ -2704,7 +2708,7 @@ async function generateDoc() {
     zip.file('word/media/lottery.png', lotteryLogoB64, {base64: true});
     const lotteryRel = '<Relationship Id="rId_lottery" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/lottery.png"/>';
     const emailRelXml = emailRels.map(r =>
-      `<Relationship Id="${r.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${r.href}" TargetMode="External"/>`
+      `<Relationship Id="${r.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${esc(r.href)}" TargetMode="External"/>`
     ).join('');
     const relsWithLottery = relsXml.replace('</Relationships>', lotteryRel + emailRelXml +
       (charityImageData ? '<Relationship Id="' + charityImageData.rId + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/charity.' + charityImageData.ext + '"/>' : '') +
@@ -3298,7 +3302,7 @@ window.addEventListener('beforeunload', (e) => {
   const GROUP_SUFFIX = 'Pop Connect';
   const TEMPLATE_TYPE = 'standard';
   const UPDATE_FILE = 'PopConnect-attendance-template.html';
-  const CURRENT_VERSION = '1.22';
+  const CURRENT_VERSION = '1.23';
   const VERSION_URL = 'https://raw.githubusercontent.com/toblerone187/pop-connect-versions/main/version.json';
 
   window.addEventListener('load', function() { setTimeout(checkForUpdates, 2000); });
