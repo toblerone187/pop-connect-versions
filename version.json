@@ -1,4 +1,4 @@
 {
-  "version": "1.23",
-  "message": "v1.23 \u2014 Fixed Word file corruption caused by ampersands in email addresses or link URLs"
+  "version": "1.24",
+  "message": "v1.24 \u2014 Group members are now included in the auto-save, so member edits are no longer lost when the tab is closed"
 }

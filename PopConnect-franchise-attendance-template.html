@@ -4,7 +4,15 @@
 POP ATTENDANCE SHEET GENERATOR — CHANGELOG
 ================================================================================
 
-v1.23 - Current version
+v1.24 - Current version
+- Group members are now included in the auto-save, so member edits survive
+  closing the tab or the browser crashing
+- Previously members were only kept when Save File was clicked, even though
+  the tool reported changes as auto-saved
+- Files saved out are now timestamped, so an older session in another
+  person's browser can no longer overwrite a newer handover file
+
+v1.23
 - Fixed Word file corruption caused by ampersands in email addresses or link URLs
 - Hyperlink targets are now escaped correctly when the Word document is built
 
@@ -747,7 +755,7 @@ v1.1
   <div class="logo-circle">PC</div>
   <div>
     <h1>Pop Connect Franchise — Attendance Sheet Generator</h1>
-    <p>Fill in the details below and generate your Word doc in one click &nbsp;·&nbsp; <span style="opacity:0.7;font-size:11px;">v1.23</span></p>
+    <p>Fill in the details below and generate your Word doc in one click &nbsp;·&nbsp; <span style="opacity:0.7;font-size:11px;">v1.24</span></p>
   </div>
 </header>
 
@@ -1183,8 +1191,8 @@ const DEFAULT_PAST = [];
 let members = [];
 
 function loadMembers() {
-  // Always load from DEFAULT_MEMBERS — no localStorage for members.
-  // Member list is baked into the file at generation time.
+  // Baseline load from DEFAULT_MEMBERS, which is baked into the file at
+  // generation time. A restored session may replace this (see loadSession).
   members = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
   members.sort((a,b) => a.name.localeCompare(b.name));
 }
@@ -2949,6 +2957,9 @@ function fmtHRuleFor(editorId) {
 // ─── AUTO-SAVE SYSTEM ────────────────────────────────────────────────────────
 const FILE_ID = 'PLACEHOLDER';
 const STORAGE_KEY = 'template_session';
+// Set when this file is written by Save File. Any browser session saved
+// before this stamp is stale — the file carries newer data.
+const FILE_BAKED_AT = '';
 let saveTimer = null;
 let lastSaveTime = null;
 let hasUnsavedChanges = false;
@@ -3004,6 +3015,7 @@ function getSessionData() {
     footerNotes: document.getElementById('footerEditor')?.innerHTML || '',
     charity: getCharityData ? getCharityData() : null,
     lottery: getLotteryData ? getLotteryData() : null,
+    members: JSON.parse(JSON.stringify(members)),
     fileId: typeof FILE_ID !== 'undefined' ? FILE_ID : null,
     savedAt: new Date().toISOString()
   };
@@ -3020,7 +3032,13 @@ function restoreSessionData(session) {
     });
   }
 
-  // Members are not stored in session — they live in DEFAULT_MEMBERS only
+  // Restore members. Sessions saved before v1.24 have no members key, so
+  // fall through to DEFAULT_MEMBERS. An empty array is a valid state (the
+  // user cleared the list) and is honoured.
+  if (Array.isArray(session.members)) {
+    members = JSON.parse(JSON.stringify(session.members));
+    renderMembers();
+  }
 
   // Restore attendance after render
   if (session.attendance) {
@@ -3146,6 +3164,13 @@ function downloadUpdatedFile() {
   const session = getSessionData();
   let updatedHtml = document.documentElement.outerHTML;
 
+  // Stamp the moment this copy was written, so a stale browser session in
+  // someone else's browser cannot overwrite the data baked in here.
+  updatedHtml = updatedHtml.replace(
+    /const FILE_BAKED_AT = '[^']*';/g,
+    "const FILE_BAKED_AT = '" + new Date().toISOString() + "';"
+  );
+
   // Bake in current members as DEFAULT_MEMBERS
   const membersJson = JSON.stringify(members, null, 2);
   updatedHtml = updatedHtml.replace(
@@ -3222,6 +3247,13 @@ function loadSession() {
       // or fileId mismatch means a different version of this file saved it.
       // Either way, start fresh rather than loading wrong data.
       if (!s.fileId || s.fileId !== FILE_ID) {
+        localStorage.removeItem(STORAGE_KEY);
+        return false;
+      }
+      // If this file was saved out after the session was stored, the file
+      // is the fresher copy. Happens when a colleague hands over a file
+      // this browser has seen an older version of.
+      if (FILE_BAKED_AT && s.savedAt && s.savedAt < FILE_BAKED_AT) {
         localStorage.removeItem(STORAGE_KEY);
         return false;
       }
@@ -3330,7 +3362,7 @@ window.addEventListener('beforeunload', (e) => {
   const GROUP_SUFFIX = 'Pop Connect';
   const TEMPLATE_TYPE = 'franchise';
   const UPDATE_FILE = 'PopConnect-franchise-attendance-template.html';
-  const CURRENT_VERSION = '1.23';
+  const CURRENT_VERSION = '1.24';
   const VERSION_URL = 'https://raw.githubusercontent.com/toblerone187/pop-connect-versions/main/version.json';
 
   window.addEventListener('load', function() { setTimeout(checkForUpdates, 2000); });
